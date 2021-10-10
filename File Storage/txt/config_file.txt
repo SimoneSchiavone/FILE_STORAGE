@@ -1,0 +1,5 @@
+NWORKERS 3
+MAX_FILE_N 4
+MAX_FILE_DIM 6
+SOCKET_FILE_PATH ./Socket
+LOG_FILE_NAME ./txt/journal.txt
