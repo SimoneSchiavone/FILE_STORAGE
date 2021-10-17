@@ -40,7 +40,7 @@ int main(){
         perror("Errore nella scrittura dell'evento nel file di log");
         return -1;
     }
-    
+    #if 0
     //-----Creazione del socket e setting dell'indirizzo-----
     int fd_s,fd_c; //file descriptor socket
     SYSCALL(fd_s,socket(AF_UNIX,SOCK_STREAM,0),"Errore nella 'socket'");
@@ -89,7 +89,19 @@ int main(){
     close(fd_s);
     pthread_t me=pthread_self();
     printf("T_ID:%ld\n",me);
+    #endif
 
+    if(InitializeStorage()==0)
+        perror("Errore initialize storage!");
+
+    stored_file* new=(stored_file*)malloc(sizeof(stored_file));
+    stored_file* new1=(stored_file*)malloc(sizeof(stored_file));
+    icl_hash_insert(storage,"pippo",new);
+    icl_hash_insert(storage,"pluto",new1);
+    icl_hash_dump(stdout,storage);
+    if(DestroyStorage()==-1)
+        perror("Errore destroy storage");
+    
     //Chiudiamo il file di log
     if(fclose(logfile)!=0){
         perror("Errore in chiusura del file di log");

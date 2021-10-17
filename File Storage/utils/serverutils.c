@@ -9,7 +9,6 @@
 #include <errno.h>
 #include <stdarg.h>
 
-
 void PrintConfiguration(){
     printf("NWorkers: %d   MaxFilesNum: %d   MaxFilesDim: %d   SocketName: %s   Logfilename: %s\n",n_workers,max_files_num,max_files_dim,socket_name,logfilename);
 }
@@ -133,6 +132,7 @@ void DefaultConfiguration(){
     logfile=NULL;
     pthread_mutex_init(&mutex_logfile,NULL);
     max_connections=5;
+    storage=NULL;
 }
 
 /*Funzione per la scrittura di una stringa nel file di log. La funzione restituisce 0 se è andato
@@ -166,4 +166,14 @@ void Welcome(){
     printf("| |     _| |_| |____| |____   ____) |  | | | |__| | | \\ \\  / ____ \\ |__| | |____\n");
     printf("|_|    |_____|______|______| |_____/   |_|  \\____/|_|  \\_\\/_/    \\_\\_____|______|\n");
     printf("***Server File Storage ATTIVO***\n\n");
+}
+
+int InitializeStorage(){
+    if((storage= icl_hash_create(15,hash_pjw,string_compare))==NULL)
+        return 0;
+    return 1;
+}
+
+int DestroyStorage(){
+    return icl_hash_destroy(storage,NULL,free); //il campo freekey è null perchè la stringa non è allocata sullo heap
 }

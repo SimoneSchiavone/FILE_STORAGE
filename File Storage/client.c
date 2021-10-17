@@ -30,14 +30,46 @@ void Welcome();
 void PrintAcceptedOptions();
 
 int main(int argc,char** argv){
+    char* socketname=NULL;
+    int enable_printing=0;
     Welcome();
+
     //Parsing degli argomenti da linea di comando
     int opt;
-    while((opt=getopt(argc,argv,"-h"))!=-1){
+    while((opt=getopt(argc,argv,"hf:w:W:D:r:R:d:t:l:u:c:p"))!=-1){
         switch (opt){
             case 'h':
                 PrintAcceptedOptions();
                 goto exit;
+            case 'f':
+                socketname=optarg;
+                break;
+            case 'w':
+                break;
+            case 'W':
+                break;
+            case 'D':
+                break;
+            case 'r':
+                break;
+            case 'R':
+                break;
+            case 'd':
+                break;
+            case 't':
+                break;
+            case 'l':
+                break;
+            case 'u':
+                break;
+            case 'c':
+                break;
+            case 'p':
+                enable_printing=1;
+                break;
+            case '?':
+            printf("Necessario argomento\n");
+                break;
             default:
             printf("opzione sconosciuta\n");
                 break;
@@ -45,8 +77,15 @@ int main(int argc,char** argv){
     }
     struct timespec a;
     a.tv_sec=15;
-    if(openConnection(SOCKNAME,5000,a)==-1)
-        return EXIT_FAILURE;
+    if(socketname==NULL){
+        printf("--->NULL socketname\n");
+        if(openConnection(SOCKNAME,5000,a)==-1)
+            return EXIT_FAILURE;
+    }else{
+        printf("--->NOT NULL socketname\n");
+        if(openConnection(socketname,5000,a)==-1)
+            return EXIT_FAILURE;
+    }
     char* buffer=(char*)calloc(BUFFDIM,sizeof(char));
     int n;
     SYSCALL(n,write(fd_connection,"Ciao",4),"Errore nella write");
