@@ -1,3 +1,21 @@
 Creazione del file di log avvenuta con successo!
 --------------------
 Server acceso!
+--------------------
+[MAIN] Server in attesa di una connessione...
+--------------------
+[MAIN] Accettata una connessione sul fd 7
+--------------------
+[MAIN] Server in attesa di una connessione...
+--------------------
+[MAIN] Server in attesa di una connessione...
+--------------------
+[WORKER 90662656] Ho ricevuto la seguente stringa: Ciao
+--------------------
+[MAIN] Server in attesa di una connessione...
+--------------------
+[MAIN] Server in attesa di una connessione...
+--------------------
+[WORKER 107448064] Ho ricevuto la seguente stringa: stop
+--------------------
+[MAIN] Server in attesa di una connessione...

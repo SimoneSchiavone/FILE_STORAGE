@@ -131,6 +131,8 @@ void DefaultConfiguration(){
     strncpy(logfilename,"./txt/logfile.txt",18); //nome del socket AF_UNIX
     logfile=NULL;
     pthread_mutex_init(&mutex_logfile,NULL);
+    pthread_mutex_init(&mutex_list,NULL);
+    pthread_cond_init(&list_not_empty,NULL);
     max_connections=5;
     storage=NULL;
 }
@@ -152,8 +154,8 @@ int LogFileAppend(char* format,...){
     after the call.  See stdarg(3). All of these functions write the output under the control of a format string that specifies how  subsequent  arguments
     (or arguments accessed via the variable-length argument facilities of stdarg(3)) are converted for output.
     */
-    va_end(list);
     pthread_mutex_unlock(&mutex_logfile);
+    va_end(list);
     return 0;
 }
 

@@ -12,14 +12,59 @@
 #include <signal.h>
 
 
-#define UNIX_PATH_MAX 108
 
+#define UNIX_PATH_MAX 108
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
+#define MAX_FD(a) if(a>fd_max) fd_max=a;
+
+int Search_New_Max_FD(fd_set set,int maxfd){
+    for(int i=maxfd-1;i>=0;i--){
+        if(FD_ISSET(i,&set))
+            return i;
+    }
+    return -1;
+}
 
 void reset_socket(){
     unlink(socket_name);
 }
 
+void* WorkerFun(void* p){
+    printf("[WORKER %ld] Ho iniziato la mia esecuzione!\n",pthread_self());
+    int pipe_fd=*((int*)p);
+    int condition=1;
+    while(condition){
+        //Estraiamo un fd dalla coda
+        printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
+        int current_fd=list_pop(&queue);
+        printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
+        //Allochiamo il buffer per accogliere il messaggio
+        char* buff=(char*)calloc(128,sizeof(char));
+        int n;
+        SYSCALL(n,read(current_fd,buff,sizeof(buff)),"Errore nella 'read' del msg <-");
+        if(LogFileAppend("[WORKER %ld] Ho ricevuto la seguente stringa: %s\n",pthread_self(),buff)==-1){
+            perror("Errore nella scrittura del logfile");
+            break;
+        }
+        printf("[WORKER %ld] Ho ricevuto la seguente stringa: %s\n",pthread_self(),buff);
+        SYSCALL(n,write(current_fd,"OK",2),"Errore nella 'write' del codice OK al client");
+        printf("[WORKER %ld] Ho risposto OK al client connesso al fd %d\n",pthread_self(),current_fd);
+
+        SYSCALL(n,write(pipe_fd,&current_fd,4),"Errore nella 'write' del fd sulla pipe");
+        if(strncmp(buff,"stop",4)==0){
+            int w=1;
+            SYSCALL(n,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
+            //DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+            condition=0;
+        }else{
+            int w=0;
+            SYSCALL(n,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
+        }
+        free(buff);
+    }
+    fflush(stdout);
+    return NULL;
+}
 //volatile sig_atomic_t term = 0; //FLAG SETTATO DAL GESTORE DEI SEGNALI DI TERMINAZIONE
 
 int main(){     
@@ -34,78 +79,110 @@ int main(){
 
     //Rimuoviamo socket relativi a precedenti computazioni del server
     reset_socket();
-    atexit(reset_socket);
+    atexit(reset_socket); //Questa procedura atexit funziona???????????????????????????
 
-    if(LogFileAppend("Server acceso!\n")!=0){
-        perror("Errore nella scrittura dell'evento nel file di log");
-        return -1;
-    }
-    #if 0
+    LOGFILEAPPEND("Server acceso!\n");
+
     //-----Creazione del socket e setting dell'indirizzo-----
-    int fd_s,fd_c; //file descriptor socket
-    SYSCALL(fd_s,socket(AF_UNIX,SOCK_STREAM,0),"Errore nella 'socket'");
+    int listen_fd; //file descriptor socket
+    int connection_fd;
+    SYSCALL(listen_fd,socket(AF_UNIX,SOCK_STREAM,0),"Errore nella 'socket'");
     struct sockaddr_un sa;
     memset(&sa, '0', sizeof(sa));
     strncpy(sa.sun_path,socket_name,UNIX_PATH_MAX);
     sa.sun_family=AF_UNIX;
 
     int ret;
-    SYSCALL(ret,bind(fd_s,(struct sockaddr*)&sa,sizeof(sa)),"Errore nella 'bind'");
-    SYSCALL(ret,listen(fd_s,max_connections),"Errore nella 'listen'");
+    SYSCALL(ret,bind(listen_fd,(struct sockaddr*)&sa,sizeof(sa)),"Errore nella 'bind'");
+    SYSCALL(ret,listen(listen_fd,max_connections),"Errore nella 'listen'");
 
-    int condition=1;
+    //-----Creazione threadpool-----
+    threadpool=malloc(n_workers*sizeof(pthread_t));
+    queue=NULL;
+    if(threadpool==NULL){
+        perror("Errore nella 'malloc' del threadpool");
+        return EXIT_FAILURE;
+    }
+
+    //-----Creazione Pipe-----
+    int wtm_pipe[2]; //WorkerToMaster_Pipe utilizzata per la comunicazione dal thread worker verso il server/manager
+    int tmp;
+    SYSCALL(tmp,pipe(wtm_pipe),"Errore nella creazione della pipe");
+
+    //-----Creazione Thread Workers-----
+    for(int i=0;i<n_workers;i++){
+            SYSCALL(threadpool[i],pthread_create(&threadpool[i],NULL,WorkerFun,(void*)&wtm_pipe[1]),"Errore nella creazione del thread");
+            //TODO: implementare la funzione del workerthread valutando opportuni argomenti
+    }
+
+    int fd_max=0;
+    MAX_FD(listen_fd); // tengo traccia del file descriptor con id piu' grande
+    
+    //-----Registrazione del welcome socket e della pipe
+    fd_set set,rdset;
+    FD_ZERO(&set);
+    FD_SET(listen_fd,&set);
+    MAX_FD(wtm_pipe[0]);
+    FD_SET(wtm_pipe[0],&set);
 
     while(1){
-        printf("Server in attesa di una connessione...\n");
-        if(LogFileAppend("Server in attesa di una connessione...\n")!=0){
-            perror("Errore nella scrittura dell'evento nel file di log");
-            return -1;
+        printf("[MAIN] Server in attesa di una connessione...\n");
+        LOGFILEAPPEND("[MAIN] Server in attesa di una connessione...\n");
+        //Copio il set nella variabile per la select
+        rdset=set;
+        if(select(fd_max+1,&rdset,NULL,NULL,NULL)==-1){
+            perror("Errore nella 'select'");
+            goto exit;
         }
-        SYSCALL(fd_c,accept(fd_s,(struct sockaddr*)NULL,0),"Errore nella 'accept'");        
-        if(LogFileAppend("Accettata una connessione sul fd %d\n",fd_c)!=0){
-            perror("Errore nella scrittura dell'evento nel file di log");
-            return -1;
-        }
-        condition=1;
-        while(condition){
-            printf("HEY\n");
-            char* buff=(char*)calloc(128,sizeof(char));
-            int n;
-            SYSCALL(n,read(fd_c,buff,sizeof(buff)),"Errore nella read del msg <-");
-            LogFileAppend("Ho ricevuto la seguente stringa: %s\n",buff);
-            SYSCALL(n,write(fd_c,"OK",2),"Errore nella write della risposta ->");
-            if(strncmp(buff,"stop",4)==0){
-                close(fd_c);
-                if(LogFileAppend("Chiusa la connessione sul fd %d\n",fd_c)!=0){
-                    perror("Errore nella scrittura dell'evento nel file di log");
-                    return -1;
+
+        //Cerchiamo di capire da quale fd abbiamo ricevuto una richiesta
+        for(int i=0;i<=fd_max;i++){
+            if(FD_ISSET(i,&rdset)){ 
+                if(i==listen_fd){ //è una nuova richiesta di connessione! 
+                    SYSCALL(connection_fd,accept(listen_fd,(struct sockaddr*)NULL,0),"Errore nella 'accept'");        
+                    printf("[MAIN] Accettata una connessione sul fd %d\n",connection_fd);
+                    LOGFILEAPPEND("[MAIN] Accettata una connessione sul fd %d\n",connection_fd);
+                    FD_SET(connection_fd,&set);
+                    MAX_FD(connection_fd);
+                }else if (i==wtm_pipe[0]){ //è la pipe di comunicazione Worker to Manager che passa l'id del fd da reinserire in lista
+                    int received_fd;
+                    int byte_read;
+                    int finished;
+                    SYSCALL(byte_read,read(wtm_pipe[0],&received_fd,4),"Errore nella 'read' del fd restituito dal worker");
+                    SYSCALL(byte_read,read(wtm_pipe[0],&finished,4),"Errore nella 'read' del flag di terminazione client proveniente dal worker");
+                    if(finished){
+                        printf("[MAIN] Il client sul fd %d ha eseguito una operazione ed è TERMINATO\n",received_fd);
+                        printf("[MAIN] Chiudiamo la connessione sul fd %d\n",received_fd);
+                        FD_CLR(received_fd,&set);
+                        Search_New_Max_FD(set,fd_max);
+                        int e;
+                        SYSCALL(e,close(received_fd),"Errore nella chiusura del fd restituito dal worker");
+                    }else{
+                        printf("[MAIN] Il client sul fd %d ha eseguito una operazione e non è terminato\n",received_fd);
+                        FD_SET(received_fd,&set);
+                        MAX_FD(received_fd);
+                    }
+                }else{ //è un client pronto in lettura
+                    int e;
+                    printf("[MAIN] Il client sul fd %d è pronto in lettura\n",i);
+                    SYSCALL(e,list_push(&queue,i),"Errore nella 'list_push' di un fd");
+                    printf("[MAIN] Il client sul fd %d è stato inserito in coda\n",i);
+                    FD_CLR(i,&set);
                 }
-                condition=0;
             }
-            free(buff);
         }
-
+     
     }
-    close(fd_s);
-    pthread_t me=pthread_self();
-    printf("T_ID:%ld\n",me);
-    #endif
+    exit:
+    close(listen_fd);
 
-    if(InitializeStorage()==0)
-        perror("Errore initialize storage!");
+    LOGFILEAPPEND("Server spento!\n");
 
-    stored_file* new=(stored_file*)malloc(sizeof(stored_file));
-    stored_file* new1=(stored_file*)malloc(sizeof(stored_file));
-    icl_hash_insert(storage,"pippo",new);
-    icl_hash_insert(storage,"pluto",new1);
-    icl_hash_dump(stdout,storage);
-    if(DestroyStorage()==-1)
-        perror("Errore destroy storage");
-    
     //Chiudiamo il file di log
     if(fclose(logfile)!=0){
         perror("Errore in chiusura del file di log");
         return -1;
     }
+
     return 0;    
 }

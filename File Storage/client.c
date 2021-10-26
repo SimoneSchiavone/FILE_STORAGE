@@ -75,6 +75,11 @@ int main(int argc,char** argv){
                 break;
         }
     }
+
+    //DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+    printf("Enableprinting:%d\n",enable_printing);
+    
+
     struct timespec a;
     a.tv_sec=15;
     if(socketname==NULL){

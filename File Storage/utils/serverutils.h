@@ -4,7 +4,14 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
-#include "icl_hash.h"
+#include "data_structures.h"
+
+#define LOGFILEAPPEND(...){ \
+            if(LogFileAppend(__VA_ARGS__)!=0){ \
+                perror("Errore nella scrittura dell'evento nel file di log"); \
+                return -1; \
+            } \
+}
 
 /*-----Parametri di configurazione del server-----*/
 char  config_file_path[128]; //path del file testuale di configurazione
@@ -39,3 +46,7 @@ void PrintConfiguration();
 hash_table_t* storage;
 int InitializeStorage();
 int DestroyStorage();
+
+/*-----Thread Pool-----*/
+pthread_t* threadpool;
+IntLinkedList queue; //FORSE VA INIZIALIZZATA A NULL
