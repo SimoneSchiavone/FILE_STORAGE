@@ -79,9 +79,10 @@ int main(int argc,char** argv){
     //DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
     printf("Enableprinting:%d\n",enable_printing);
     
-
+    
     struct timespec a;
     a.tv_sec=15;
+
     if(socketname==NULL){
         printf("--->NULL socketname\n");
         if(openConnection(SOCKNAME,5000,a)==-1)
@@ -91,6 +92,10 @@ int main(int argc,char** argv){
         if(openConnection(socketname,5000,a)==-1)
             return EXIT_FAILURE;
     }
+    char name[]="/Topolino\0";
+    printf("Dimensione: %ld Stringa: %s\n",strlen(name),name);
+    openFile(name,1,1);
+    /*
     char* buffer=(char*)calloc(BUFFDIM,sizeof(char));
     int n;
     SYSCALL(n,write(fd_connection,"Ciao",4),"Errore nella write");
@@ -101,7 +106,9 @@ int main(int argc,char** argv){
     SYSCALL(n,read(fd_connection,buffer,BUFFDIM),"Errore nella read");
     printf("Ho ricevuto %s\n",buffer);
     free(buffer);
-    close(fd_connection);
+    */
+    closeConnection(socketname);
+    printf("Sock: %s\n",socketname);
     exit:
         return EXIT_SUCCESS;
 }

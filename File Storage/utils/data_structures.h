@@ -1,14 +1,5 @@
-/**
- * @file
- *
- * Header file for icl_hash routines.
- *
- */
-/* $Id$ */
-/* $UTK_Copyright: $ */
-
 #ifndef data_structures_h
-#define icl_hash_h
+#define data_structures_h
 
 #include <stdio.h>
 
@@ -16,49 +7,38 @@
 extern "C" {
 #endif
 
-typedef struct icl_entry_s {
+typedef struct entry_s {
     void* key;
-    void *data;
-    struct icl_entry_s* next;
-} icl_entry_t;
+    void* data;
+    struct entry_s* next;
+} entry_t;
 
-typedef struct icl_hash_s {
+typedef struct hash_s {
     int nbuckets;
     int nentries;
-    icl_entry_t **buckets;
+    entry_t **buckets;
     unsigned int (*hash_function)(void*);
     int (*hash_key_compare)(void*, void*);
-} icl_hash_t;
+} hash_t;
 
-typedef icl_hash_t hash_table_t;
-typedef icl_entry_t hash_table_entry;
+typedef hash_t hash_table_t;
+typedef entry_t hash_table_entry;
+pthread_mutex_t mutex_storage;
 
-icl_hash_t *
-icl_hash_create( int nbuckets, unsigned int (*hash_function)(void*), int (*hash_key_compare)(void*, void*) );
-
-void
-* icl_hash_find(icl_hash_t *, void* );
-
-icl_entry_t
-* icl_hash_insert(icl_hash_t *, void*, void *),
-    * icl_hash_update_insert(icl_hash_t *, void*, void *, void **);
-
-int
-icl_hash_destroy(icl_hash_t *, void (*)(void*), void (*)(void*)),
-    icl_hash_dump(FILE *, icl_hash_t *);
-
-int icl_hash_delete( icl_hash_t *ht, void* key, void (*free_key)(void*), void (*free_data)(void*) );
-
+hash_t* hash_create( int nbuckets, unsigned int (*hash_function)(void*), int (*hash_key_compare)(void*, void*) );
+void* hash_find(hash_t *, void* );
+int hash_insert(hash_t *, void*, void *);
+entry_t* hash_update_insert(hash_t *, void*, void *, void **);
+int hash_destroy(hash_t *, void (*)(void*), void (*)(void*));
+int hash_dump(FILE* stream, hash_t* ht,void (print_data_info)(FILE*, void*));
+int hash_delete( hash_t *ht, void* key, void (*free_key)(void*), void (*free_data)(void*) );
 /* simple hash function */
-unsigned int
-hash_pjw(void* key);
-
+unsigned int hash_pjw(void* key);
 /* compare function */
-int 
-string_compare(void* a, void* b);
+int string_compare(void* a, void* b);
 
 
-#define icl_hash_foreach(ht, tmpint, tmpent, kp, dp)    \
+#define hash_foreach(ht, tmpint, tmpent, kp, dp)    \
     for (tmpint=0;tmpint<ht->nbuckets; tmpint++)        \
         for (tmpent=ht->buckets[tmpint];                                \
              tmpent!=NULL&&((kp=tmpent->key)!=NULL)&&((dp=tmpent->data)!=NULL); \
@@ -84,7 +64,8 @@ typedef Node* IntLinkedList;
 pthread_mutex_t mutex_list;
 pthread_cond_t list_not_empty;
 int list_push(Node** head_ref, int new_data);
+int list_push_terminators(Node** head_ref,int nr_workers);
 int list_pop(Node** head_ref);
 void list_destroy(struct Node* head_ref);
-
-#endif /* icl_hash_h */
+void list_print(struct Node*);
+#endif 

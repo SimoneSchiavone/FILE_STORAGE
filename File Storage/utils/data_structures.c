@@ -1,5 +1,5 @@
 /**
- * @file icl_hash.c
+ * @file hash.c
  *
  * Dependency free hash table implementation.
  *
@@ -8,7 +8,7 @@
  * 
  * @author Jakub Kurzak
  */
-/* $Id: icl_hash.c 2838 2011-11-22 04:25:02Z mfaverge $ */
+/* $Id: hash.c 2838 2011-11-22 04:25:02Z mfaverge $ */
 /* $UTK_Copyright: $ */
 
 #include <stdlib.h>
@@ -36,14 +36,10 @@
  *
  * @returns the hash index
  */
-unsigned int
-hash_pjw(void* key)
-{
+unsigned int hash_pjw(void* key){
     char *datum = (char *)key;
     unsigned int hash_value, i;
-
     if(!datum) return 0;
-
     for (hash_value = 0; *datum; ++datum) {
         hash_value = (hash_value << ONE_EIGHTH) + *datum;
         if ((i = hash_value & HIGH_BITS) != 0)
@@ -52,11 +48,9 @@ hash_pjw(void* key)
     return (hash_value);
 }
 
-int string_compare(void* a, void* b) 
-{
+int string_compare(void* a, void* b){
     return (strcmp( (char*)a, (char*)b ) == 0);
 }
-
 
 /**
  * Create a new hash table.
@@ -68,26 +62,19 @@ int string_compare(void* a, void* b)
  * @returns pointer to new hash table.
  */
 
-icl_hash_t *
-icl_hash_create( int nbuckets, unsigned int (*hash_function)(void*), int (*hash_key_compare)(void*, void*) )
-{
-    icl_hash_t *ht;
+hash_t * hash_create( int nbuckets, unsigned int (*hash_function)(void*), int (*hash_key_compare)(void*, void*) ){
+    hash_t *ht;
     int i;
-
-    ht = (icl_hash_t*) malloc(sizeof(icl_hash_t));
+    ht = (hash_t*) malloc(sizeof(hash_t));
     if(!ht) return NULL;
-
     ht->nentries = 0;
-    ht->buckets = (icl_entry_t**)malloc(nbuckets * sizeof(icl_entry_t*));
+    ht->buckets = (entry_t**)malloc(nbuckets * sizeof(entry_t*));
     if(!ht->buckets) return NULL;
-
     ht->nbuckets = nbuckets;
     for(i=0;i<ht->nbuckets;i++)
         ht->buckets[i] = NULL;
-
     ht->hash_function = hash_function ? hash_function : hash_pjw;
     ht->hash_key_compare = hash_key_compare ? hash_key_compare : string_compare;
-
     return ht;
 }
 
@@ -101,20 +88,18 @@ icl_hash_create( int nbuckets, unsigned int (*hash_function)(void*), int (*hash_
  *   If the key was not found, returns NULL.
  */
 
-void *
-icl_hash_find(icl_hash_t *ht, void* key)
-{
-    icl_entry_t* curr;
+void * hash_find(hash_t *ht, void* key){
+    entry_t* curr;
     unsigned int hash_val;
-
     if(!ht || !key) return NULL;
-
+    pthread_mutex_lock(&mutex_storage);
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
-
     for (curr=ht->buckets[hash_val]; curr != NULL; curr=curr->next)
-        if ( ht->hash_key_compare(curr->key, key))
+        if ( ht->hash_key_compare(curr->key, key)){
+            pthread_mutex_unlock(&mutex_storage);
             return(curr->data);
-
+        }
+    pthread_mutex_unlock(&mutex_storage);
     return NULL;
 }
 
@@ -125,35 +110,40 @@ icl_hash_find(icl_hash_t *ht, void* key)
  * @param key -- the key of the new item
  * @param data -- pointer to the new item's data
  *
- * @returns pointer to the new item.  Returns NULL on error.
+ * @returns 1 if parameters are null, 2 if the key already exists, 3 in case of
+ * malloc problems, 0 if OK
  */
 
-icl_entry_t *
-icl_hash_insert(icl_hash_t *ht, void* key, void *data)
-{
-    icl_entry_t *curr;
+int hash_insert(hash_t *ht, void* key, void *data){
+    entry_t *curr;
     unsigned int hash_val;
-
-    if(!ht || !key) return NULL;
-
+    if(!ht || !key){
+        perror("Parametri NULL");
+        return 1;
+    } 
+    pthread_mutex_lock(&mutex_storage);
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
-
-    for (curr=ht->buckets[hash_val]; curr != NULL; curr=curr->next)
-        if ( ht->hash_key_compare(curr->key, key))
-            return(NULL); /* key already exists */
-
+    for (curr=ht->buckets[hash_val]; curr != NULL; curr=curr->next){
+        if ( ht->hash_key_compare(curr->key, key)){
+            printf("Il file è già presente nello storage\n");
+            pthread_mutex_unlock(&mutex_storage);
+            return 2; /* key already exists */
+        }
+    }
     /* if key was not found */
-    curr = (icl_entry_t*)malloc(sizeof(icl_entry_t));
-    if(!curr) return NULL;
-
+    curr = (entry_t*)malloc(sizeof(entry_t));
+    if(!curr){
+        perror("Malloc nuova entry hash table");
+        pthread_mutex_unlock(&mutex_storage);
+        return 3;
+    }
     curr->key = key;
     curr->data = data;
     curr->next = ht->buckets[hash_val]; /* add at start */
-
     ht->buckets[hash_val] = curr;
     ht->nentries++;
-
-    return curr;
+    pthread_mutex_unlock(&mutex_storage);
+    return 0;
 }
 
 /**
@@ -167,16 +157,12 @@ icl_hash_insert(icl_hash_t *ht, void* key, void *data)
  * @returns pointer to the new item.  Returns NULL on error.
  */
 
-icl_entry_t *
-icl_hash_update_insert(icl_hash_t *ht, void* key, void *data, void **olddata)
-{
-    icl_entry_t *curr, *prev;
+entry_t * hash_update_insert(hash_t *ht, void* key, void *data, void **olddata){
+    entry_t *curr, *prev;
     unsigned int hash_val;
-
     if(!ht || !key) return NULL;
-
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
-
+    pthread_mutex_lock(&mutex_storage);
     /* Scan bucket[hash_val] for key */
     for (prev=NULL,curr=ht->buckets[hash_val]; curr != NULL; prev=curr, curr=curr->next)
         /* If key found, remove node from list, free old key, and setup olddata for the return */
@@ -193,8 +179,12 @@ icl_hash_update_insert(icl_hash_t *ht, void* key, void *data, void **olddata)
         }
 
     /* Since key was either not found, or found-and-removed, create and prepend new node */
-    curr = (icl_entry_t*)malloc(sizeof(icl_entry_t));
-    if(curr == NULL) return NULL; /* out of memory */
+    curr = (entry_t*)malloc(sizeof(entry_t));
+    if(curr == NULL){
+        perror("Malloc new node");
+        pthread_mutex_unlock(&mutex_storage);
+        return NULL; /* out of memory */
+    }
 
     curr->key = key;
     curr->data = data;
@@ -202,10 +192,10 @@ icl_hash_update_insert(icl_hash_t *ht, void* key, void *data, void **olddata)
 
     ht->buckets[hash_val] = curr;
     ht->nentries++;
+    pthread_mutex_unlock(&mutex_storage);
 
     if(olddata!=NULL && *olddata!=NULL)
         *olddata = NULL;
-
     return curr;
 }
 
@@ -219,15 +209,13 @@ icl_hash_update_insert(icl_hash_t *ht, void* key, void *data, void **olddata)
  *
  * @returns 0 on success, -1 on failure.
  */
-int icl_hash_delete(icl_hash_t *ht, void* key, void (*free_key)(void*), void (*free_data)(void*))
-{
-    icl_entry_t *curr, *prev;
+int hash_delete(hash_t *ht, void* key, void (*free_key)(void*), void (*free_data)(void*)){
+    entry_t *curr, *prev;
     unsigned int hash_val;
-
     if(!ht || !key) return -1;
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
-
     prev = NULL;
+    pthread_mutex_lock(&mutex_storage);
     for (curr=ht->buckets[hash_val]; curr != NULL; )  {
         if ( ht->hash_key_compare(curr->key, key)) {
             if (prev == NULL) {
@@ -239,11 +227,13 @@ int icl_hash_delete(icl_hash_t *ht, void* key, void (*free_key)(void*), void (*f
             if (*free_data && curr->data) (*free_data)(curr->data);
             ht->nentries++;
             free(curr);
+            pthread_mutex_unlock(&mutex_storage);
             return 0;
         }
         prev = curr;
         curr = curr->next;
     }
+    pthread_mutex_unlock(&mutex_storage);
     return -1;
 }
 
@@ -256,14 +246,11 @@ int icl_hash_delete(icl_hash_t *ht, void* key, void (*free_key)(void*), void (*f
  *
  * @returns 0 on success, -1 on failure.
  */
-int
-icl_hash_destroy(icl_hash_t *ht, void (*free_key)(void*), void (*free_data)(void*))
-{
-    icl_entry_t *bucket, *curr, *next;
+int hash_destroy(hash_t *ht, void (*free_key)(void*), void (*free_data)(void*)){
+    entry_t *bucket, *curr, *next;
     int i;
-
     if(!ht) return -1;
-
+    pthread_mutex_lock(&mutex_storage);
     for (i=0; i<ht->nbuckets; i++) {
         bucket = ht->buckets[i];
         for (curr=bucket; curr!=NULL; ) {
@@ -274,10 +261,9 @@ icl_hash_destroy(icl_hash_t *ht, void (*free_key)(void*), void (*free_data)(void
             curr=next;
         }
     }
-
     if(ht->buckets) free(ht->buckets);
     if(ht) free(ht);
-
+    pthread_mutex_unlock(&mutex_storage);
     return 0;
 }
 
@@ -286,27 +272,26 @@ icl_hash_destroy(icl_hash_t *ht, void (*free_key)(void*), void (*free_data)(void
  *
  * @param stream -- the file to which the hash table should be dumped
  * @param ht -- the hash table to be dumped
- *
+ * @param print_data_info -- void function that 
  * @returns 0 on success, -1 on failure.
  */
-
-int
-icl_hash_dump(FILE* stream, icl_hash_t* ht)
-{
-    icl_entry_t *bucket, *curr;
+ 
+int hash_dump(FILE* stream, hash_t* ht,void (print_data_info)(FILE*, void*)){
+    entry_t *bucket, *curr;
     int i;
-
     if(!ht) return -1;
-
+    pthread_mutex_lock(&mutex_storage);
     for(i=0; i<ht->nbuckets; i++) {
         bucket = ht->buckets[i];
         for(curr=bucket; curr!=NULL; ) {
-            if(curr->key)
-                fprintf(stream, "icl_hash_dump: %s: %p\n", (char *)curr->key, curr->data);
+            if(curr->key){
+                fprintf(stream, "hash_dump->Key: %s Location: %p ->", (char *)curr->key, curr->data);
+                print_data_info(stream,curr->data);
+            }
             curr=curr->next;
         }
     }
-
+    pthread_mutex_unlock(&mutex_storage);
     return 0;
 }
 
@@ -319,7 +304,7 @@ icl_hash_dump(FILE* stream, icl_hash_t* ht)
    and size of the data type */
 
 int list_push(Node** head_ref, int new_data){ 
-    printf("[WORKER %ld-ListPush] inizio procedura\n",pthread_self());
+    //printf("[WORKER %ld-ListPush] inizio procedura\n",pthread_self());
     // Allocate memory for node 
     Node* new_node = (Node*)malloc(sizeof(Node)); 
     if(new_node==NULL){
@@ -332,12 +317,12 @@ int list_push(Node** head_ref, int new_data){
     
     // Change head pointer as new node is added at the beginning 
     pthread_mutex_lock(&mutex_list);
-    printf("[WORKER %ld-ListPush] lock preso\n",pthread_self());
+    //printf("[WORKER %ld-ListPush] lock preso\n",pthread_self());
     (*head_ref)    = new_node; 
     pthread_cond_signal(&list_not_empty);
-    printf("[WORKER %ld-ListPush] Signal fatta\n",pthread_self());
+    //printf("[WORKER %ld-ListPush] Signal fatta\n",pthread_self());
     pthread_mutex_unlock(&mutex_list);
-    printf("[WORKER %ld-ListPush] lock rilasciato\n",pthread_self());
+    //printf("[WORKER %ld-ListPush] lock rilasciato\n",pthread_self());
     return 0;
 } 
 
@@ -354,22 +339,58 @@ void list_destroy(Node* head_ref){
 }
 
 int list_pop(Node** head_ref){
-    printf("[WORKER %ld-ListPop] Inizio procedura\n",pthread_self());
+    //printf("[WORKER %ld-ListPop] Inizio procedura\n",pthread_self());
     pthread_mutex_lock(&mutex_list);
-    printf("[WORKER %ld-ListPop] lock preso\n",pthread_self());
+    //printf("[WORKER %ld-ListPop] lock preso\n",pthread_self());
     //While the list doesn't containt an element wait for someone push a new one
     while(*head_ref==NULL){
-        printf("[WORKER %ld-ListPop] aspetto la condizione\n",pthread_self());
+        //printf("[WORKER %ld-ListPop] aspetto la condizione\n",pthread_self());
         pthread_cond_wait(&list_not_empty,&mutex_list);
+        //printf("[WORKER %ld-ListPop] mi sono svegliato\n",pthread_self());
+        fflush(stdout);
     }
     //Extraction of the element at the top of the list
     Node* extracted= *head_ref;
     (*head_ref)=(*head_ref)->next;
     pthread_mutex_unlock(&mutex_list);
-    printf("[WORKER %ld-ListPop] lock rilasciato\n",pthread_self());
+    //printf("[WORKER %ld-ListPop] lock rilasciato\n",pthread_self());
     
     //Free the node and return the int value
     int data=extracted->data;
     free(extracted);
     return data;
 }
+
+void list_print(Node* head_ref){
+    Node* curr=head_ref;
+    printf("List:\t");
+    while(curr!=NULL){
+        printf("%d --> ",curr->data);
+        curr=curr->next;
+    }
+    printf("NULL\n");
+}
+
+int list_push_terminators(Node** head_ref,int n_workers){
+    printf("[WORKER %ld-ListPushTerminators] Inizio procedura\n",pthread_self());
+    list_print(*head_ref);
+    //Lock acquire
+    pthread_mutex_lock(&mutex_list);
+    printf("[WORKER %ld-ListPushTerminator] lock preso\n",pthread_self());
+    for(int i=0;i<n_workers;i++){
+        Node* terminator=(Node*)malloc(sizeof(Node));
+        if(terminator==NULL)
+            return -1;
+        terminator->data=-1;
+        terminator->next=(*head_ref); 
+        (*head_ref)=terminator; 
+    
+    }
+    printf("[WORKER %ld-ListPushTerminator] inseriti %d terminatori\n",pthread_self(),n_workers);
+    list_print(*head_ref);
+    pthread_cond_signal(&list_not_empty);
+    pthread_mutex_unlock(&mutex_list);
+    printf("[WORKER %ld-ListPushTerminator] signal & unlock fatte, esco\n",pthread_self());
+    return 0;
+}
+

@@ -132,9 +132,11 @@ void DefaultConfiguration(){
     logfile=NULL;
     pthread_mutex_init(&mutex_logfile,NULL);
     pthread_mutex_init(&mutex_list,NULL);
+    pthread_mutex_init(&mutex_storage,NULL);
     pthread_cond_init(&list_not_empty,NULL);
     max_connections=5;
     storage=NULL;
+
 }
 
 /*Funzione per la scrittura di una stringa nel file di log. La funzione restituisce 0 se è andato
@@ -171,11 +173,126 @@ void Welcome(){
 }
 
 int InitializeStorage(){
-    if((storage= icl_hash_create(15,hash_pjw,string_compare))==NULL)
-        return 0;
-    return 1;
+    if((storage= hash_create(15,hash_pjw,string_compare))==NULL)
+        return -1;
+    return 0;
 }
 
 int DestroyStorage(){
-    return icl_hash_destroy(storage,NULL,free); //il campo freekey è null perchè la stringa non è allocata sullo heap
+    return hash_destroy(storage,NULL,free); //il campo freekey è null perchè la stringa non è allocata sullo heap
+}
+
+int ExecuteRequest(int fun,int fd){
+    switch(fun){
+        case (3):{
+            int intbuffer; //Buffer di interi
+            int ctrl; //variabile che memorizza il risultato di ritorno di chiamate di sistema/funzioni
+
+            //Leggo la dimensione del pathname e poi leggo il pathname
+            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST] Errore nella 'read' della dimensione del pathname");
+            printf("[EXECUTE REQUEST-OpenFile] Devo ricevere un path di dimensione %d\n",intbuffer);
+            char* stringbuffer; //buffer per contenere la stringa
+            if(!(stringbuffer=(char*)calloc(intbuffer,sizeof(char)))){ //Verifica malloc
+                perror("[EXECUTE REQUEST-OpenFile] Errore nella 'malloc' del buffer per pathname");
+                return -1;
+            }
+            SYSCALL(ctrl,read(fd,stringbuffer,intbuffer),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del pathname");
+            printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il path %s di dimensione %d\n",stringbuffer,ctrl);
+            
+            //Leggo il flag o_create
+            int o_create;
+            SYSCALL(ctrl,read(fd,&o_create,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_create");
+            if(o_create)
+                printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il flag OCREATE\n");
+
+            //Leggo il flag o_lock
+            int o_lock;
+            SYSCALL(ctrl,read(fd,&o_lock,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_locK");
+            if(o_lock)
+                printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il flag o_lock\n");
+
+            //Chiamata alla funzione OpenFile che restituisce un oggetto di tipo response che incapsula
+            //al suo interno un messaggio ed un codice di errore
+            response r=OpenFile(stringbuffer,o_create,o_lock,fd);
+            free(stringbuffer);
+
+            int responsedim=strlen(r.message);
+            //Invio prima la dimensione della risposta e poi la risposta
+            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della risposta");
+
+            return r.code;
+        }
+        case (12):{ //fine comando
+            return 1;
+        }
+        default:{
+            printf("Comando sconosciuto");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/*Richiesta di apertura o creazione di un file.*/
+response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
+    response r;
+    printf("[FILE STORAGE-OpenFile] Il path ricevuto è %s\n",pathname);
+    char* id=strndup(pathname,strlen(pathname));
+    if(o_create){ //Il file va creato
+        stored_file* new_file=(stored_file*)malloc(sizeof(stored_file));
+        if(new_file==NULL){
+            errno=ENOMEM;
+            perror("Errore nella creazione del nuovo file");
+            r.code=-1;
+            sprintf(r.message,"Errore nella creazione del nuovo file\n");
+        }
+        new_file->content=NULL;
+        if(o_lock){
+            new_file->fd_owner=fd_owner;
+        }else{
+            new_file->fd_owner=-1;
+        }
+        switch(hash_insert(storage,id,new_file)){
+            case 1: //null parameters
+                errno=EINVAL;
+                perror("[FILE STORAGE] Parametri errati");
+                free(new_file);
+                r.code=-1;
+                sprintf(r.message,"Parametri openFileErrati");
+                break;
+            case 2: //key già presente
+                errno=EEXIST;
+                perror("[FILE STORAGE] Il file è già presente nello storage\n");
+                free(new_file);
+                r.code=-1;
+                sprintf(r.message,"Il file %s è già presente nello storage!",id);
+                break;
+            case 3: //errore malloc nuovo nodo
+                errno=ENOMEM;
+                perror("Malloc nuova entry hash table");
+                free(new_file);
+                r.code=-1;
+                sprintf(r.message,"Errore nella malloc del nuovo file");
+                break;
+            case 0:
+                printf("[FILE STORAGE] %s inserito nello storage\n",id);
+                hash_dump(stdout,storage,print_stored_file_info);
+                r.code=0;
+                sprintf(r.message,"OK Il file %s è stato inserito nello storage",id);;
+        }
+    }else{ //Il file deve essere presente
+        if(hash_find(storage,pathname)==NULL){
+            errno=ENOENT;
+            perror("[FILE STORAGE] Il file non è presente nello storage\n");
+            r.code=-1;
+            sprintf(r.message,"Il file %s NON è presente nello storage\n",id);
+        }
+    }
+    return r;
+}
+
+void print_stored_file_info(FILE* stream,void* file){
+    stored_file* param=(stored_file*)file;
+    fprintf(stream,"Size of content:%d Owner:%d\n",(int)sizeof(param->content),param->fd_owner);
 }

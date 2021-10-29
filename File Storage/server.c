@@ -11,10 +11,8 @@
 #include <errno.h>
 #include <signal.h>
 
-
-
 #define UNIX_PATH_MAX 108
-#define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
+#define CHECKRETURNVALUE(r,command,e,t) if((r=command)!=0) {perror(e); t;}
 #define MAX_FD(a) if(a>fd_max) fd_max=a;
 
 int Search_New_Max_FD(fd_set set,int maxfd){
@@ -29,45 +27,15 @@ void reset_socket(){
     unlink(socket_name);
 }
 
-void* WorkerFun(void* p){
-    printf("[WORKER %ld] Ho iniziato la mia esecuzione!\n",pthread_self());
-    int pipe_fd=*((int*)p);
-    int condition=1;
-    while(condition){
-        //Estraiamo un fd dalla coda
-        printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
-        int current_fd=list_pop(&queue);
-        printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
-        //Allochiamo il buffer per accogliere il messaggio
-        char* buff=(char*)calloc(128,sizeof(char));
-        int n;
-        SYSCALL(n,read(current_fd,buff,sizeof(buff)),"Errore nella 'read' del msg <-");
-        if(LogFileAppend("[WORKER %ld] Ho ricevuto la seguente stringa: %s\n",pthread_self(),buff)==-1){
-            perror("Errore nella scrittura del logfile");
-            break;
-        }
-        printf("[WORKER %ld] Ho ricevuto la seguente stringa: %s\n",pthread_self(),buff);
-        SYSCALL(n,write(current_fd,"OK",2),"Errore nella 'write' del codice OK al client");
-        printf("[WORKER %ld] Ho risposto OK al client connesso al fd %d\n",pthread_self(),current_fd);
+void* WorkerFun(void* p);
+void* SignalHandlerFun(void* arg);
 
-        SYSCALL(n,write(pipe_fd,&current_fd,4),"Errore nella 'write' del fd sulla pipe");
-        if(strncmp(buff,"stop",4)==0){
-            int w=1;
-            SYSCALL(n,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
-            //DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
-            condition=0;
-        }else{
-            int w=0;
-            SYSCALL(n,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
-        }
-        free(buff);
-    }
-    fflush(stdout);
-    return NULL;
-}
-//volatile sig_atomic_t term = 0; //FLAG SETTATO DAL GESTORE DEI SEGNALI DI TERMINAZIONE
+volatile sig_atomic_t graceful_term=0; //FLAG SETTATO DAL GESTORE DEI SEGNALI DI TERMINAZIONE
+volatile sig_atomic_t forced_term=0;
 
 int main(){     
+    int ctrl;
+
     //-----Messaggio di benvenuto-----
     Welcome();
 
@@ -77,11 +45,31 @@ int main(){
     ScanConfiguration(config_file_path);
     PrintConfiguration();
 
+    //-----Inizializzazione dello Storage
+    CHECKRETURNVALUE(ctrl,InitializeStorage(),"Errore inizializzando lo storage",goto exit);
+
     //Rimuoviamo socket relativi a precedenti computazioni del server
     reset_socket();
-    atexit(reset_socket); //Questa procedura atexit funziona???????????????????????????
+    atexit(reset_socket);
 
     LOGFILEAPPEND("Server acceso!\n");
+
+    //-----Gestione dei segnali-----
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGINT); 
+    sigaddset(&mask, SIGQUIT);
+    sigaddset(&mask, SIGHUP);
+    CHECKRETURNVALUE(ctrl,pthread_sigmask(SIG_BLOCK,&mask,NULL),"Errore in 'pthread_sigmask",goto exit);
+    
+    struct sigaction s;
+    memset(&s,0,sizeof(s));
+    s.sa_handler=SIG_IGN;
+    CHECKRETURNVALUE(ctrl,sigaction(SIGPIPE,&s,NULL),"Errore in 'sigaction",goto exit);
+    pthread_t signal_handler_thread;
+    CHECKRETURNVALUE(ctrl,pthread_create(&signal_handler_thread,NULL,SignalHandlerFun,&mask),"Errore nella creazione del thread signal handler",goto exit);
+
+
 
     //-----Creazione del socket e setting dell'indirizzo-----
     int listen_fd; //file descriptor socket
@@ -92,16 +80,15 @@ int main(){
     strncpy(sa.sun_path,socket_name,UNIX_PATH_MAX);
     sa.sun_family=AF_UNIX;
 
-    int ret;
-    SYSCALL(ret,bind(listen_fd,(struct sockaddr*)&sa,sizeof(sa)),"Errore nella 'bind'");
-    SYSCALL(ret,listen(listen_fd,max_connections),"Errore nella 'listen'");
+    SYSCALL(ctrl,bind(listen_fd,(struct sockaddr*)&sa,sizeof(sa)),"Errore nella 'bind'");
+    SYSCALL(ctrl,listen(listen_fd,max_connections),"Errore nella 'listen'");
 
     //-----Creazione threadpool-----
     threadpool=malloc(n_workers*sizeof(pthread_t));
     queue=NULL;
     if(threadpool==NULL){
         perror("Errore nella 'malloc' del threadpool");
-        return EXIT_FAILURE;
+        goto exit;
     }
 
     //-----Creazione Pipe-----
@@ -111,8 +98,7 @@ int main(){
 
     //-----Creazione Thread Workers-----
     for(int i=0;i<n_workers;i++){
-            SYSCALL(threadpool[i],pthread_create(&threadpool[i],NULL,WorkerFun,(void*)&wtm_pipe[1]),"Errore nella creazione del thread");
-            //TODO: implementare la funzione del workerthread valutando opportuni argomenti
+            CHECKRETURNVALUE(threadpool[i],pthread_create(&threadpool[i],NULL,WorkerFun,(void*)&wtm_pipe[1]),"Errore nella creazione del thread",goto exit);
     }
 
     int fd_max=0;
@@ -134,9 +120,10 @@ int main(){
             perror("Errore nella 'select'");
             goto exit;
         }
-
+        //printf("[MAIN] SELECT\n");
         //Cerchiamo di capire da quale fd abbiamo ricevuto una richiesta
         for(int i=0;i<=fd_max;i++){
+            //printf("[MAIN] Analizzo il FD %d\n",i);
             if(FD_ISSET(i,&rdset)){ 
                 if(i==listen_fd){ //è una nuova richiesta di connessione! 
                     SYSCALL(connection_fd,accept(listen_fd,(struct sockaddr*)NULL,0),"Errore nella 'accept'");        
@@ -173,16 +160,103 @@ int main(){
         }
      
     }
+
     exit:
-    close(listen_fd);
+        close(listen_fd);
+        //-----Distruzione dello Storage
+        hash_dump(stdout,storage,print_stored_file_info);
+        CHECKRETURNVALUE(ctrl,DestroyStorage(),"Errore distruggendo lo storage",;);
 
     LOGFILEAPPEND("Server spento!\n");
-
+    
     //Chiudiamo il file di log
     if(fclose(logfile)!=0){
         perror("Errore in chiusura del file di log");
         return -1;
     }
-
+    
+    printf("aspetto il signal handler thread\n");
+    pthread_join(signal_handler_thread,NULL);
     return 0;    
 }
+
+void* WorkerFun(void* p){
+    printf("[WORKER %ld] Ho iniziato la mia esecuzione!\n",pthread_self());
+    int pipe_fd=*((int*)p);
+    int condition=1;
+    int ctrl;
+    int op_return;
+    while(condition){
+        //Estraiamo un fd dalla coda
+        //printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
+        int current_fd=list_pop(&queue);
+        //printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
+        if(current_fd==-1){ //Se estraggo -1 dalla coda devo terminare forzatamente
+            printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
+            condition=0;
+        }else{
+            int operation;
+            SYSCALL(ctrl,read(current_fd,&operation,4),"Errore nella 'read' dell'operazione");
+            if(LogFileAppend("[WORKER %ld] Ho ricevuto la seguente richiesta: %d\n",pthread_self(),operation)==-1){
+                perror("Errore nella scrittura del logfile");
+                break;
+            }
+            printf("[WORKER %ld] Ho ricevuto la seguente richiesta: %d\n",pthread_self(),operation);
+            op_return=ExecuteRequest(operation,current_fd);
+            switch(op_return){
+                case 0:
+                    printf("[WORKER %ld] Operazione %d andata a buon fine\n",pthread_self(),operation);
+                    SYSCALL(ctrl,write(current_fd,"OK",2),"Errore nella 'write' del fd al client");
+                    break;
+                case 1:
+                    printf("[WORKER %ld] Operazione %d andata a buon fine, ESCO\n",pthread_self(),operation);
+                    break;
+                case -1:
+                    printf("[WORKER %ld] Operazione %d fallita\n",pthread_self(),operation);
+                    SYSCALL(ctrl,write(current_fd,"NO",2),"Errore nella 'write' del NO al client");
+                    break;
+            }
+        }
+
+        SYSCALL(ctrl,write(pipe_fd,&current_fd,4),"Errore nella 'write' del fd sulla pipe");
+        if(!condition || op_return==1){ 
+            //Se il client invia il messaggio di terminazione oppure devo forzatamente terminare
+            int w=1;
+            SYSCALL(ctrl,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
+        }else{
+            int w=0;
+            SYSCALL(ctrl,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
+        }
+    }
+    fflush(stdout);
+    return NULL;
+}
+
+void* SignalHandlerFun(void* arg){
+    sigset_t* set=(sigset_t*)arg;
+    int ret;
+    int condition=1;
+    while(condition){
+        int sig;
+        CHECKRETURNVALUE(ret,sigwait(set,&sig),"Errore nella 'sigwait' in SignalHandlerFun",return NULL);
+
+        switch (sig){
+        case SIGINT:
+            printf("Ricevuto SIGINT\n");
+            fflush(stdout);
+            /*
+            list_push_terminators(&queue,n_workers);
+            forced_term=1;
+            */
+            condition=0;
+            break;
+        case SIGHUP:
+            graceful_term=1;
+            break;
+        default:
+            break;
+        }
+    }
+    return NULL;
+}
+
