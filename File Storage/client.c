@@ -18,9 +18,9 @@ al server multithreaded.*/
 #include <unistd.h>
 #include <pthread.h>
 #include <ctype.h>
-#include "utils/serverAPI.h"
+#include "client_utils/serverAPI.h"
 
-#define SOCKNAME "./Socket"
+#define SOCKNAME "./SocketFileStorage"
 
 #define BUFFDIM 256
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
@@ -92,9 +92,13 @@ int main(int argc,char** argv){
         if(openConnection(socketname,5000,a)==-1)
             return EXIT_FAILURE;
     }
-    char name[]="/Topolino\0";
-    printf("Dimensione: %ld Stringa: %s\n",strlen(name),name);
-    openFile(name,1,1);
+    //char name[]="/Topolino\0";
+    //printf("Dimensione: %ld Stringa: %s\n",strlen(name),name);
+    openFile("topolino.txt\0",1,1);
+    writeFile("topolino.txt\0",NULL);
+    sleep(5);
+    openFile("minnie.txt\0",1,1);
+    writeFile("minnie.txt\0",NULL);
     /*
     char* buffer=(char*)calloc(BUFFDIM,sizeof(char));
     int n;

@@ -2,7 +2,7 @@
 // @Università di Pisa
 // Matricola 582418
 
-#include "utils/serverutils.h"
+#include "server_utils/serverutils.h"
 #include <stdlib.h>
 #include <pthread.h>
 #include <sys/types.h>
@@ -111,19 +111,39 @@ int main(){
     MAX_FD(wtm_pipe[0]);
     FD_SET(wtm_pipe[0],&set);
 
+    terminated=0;
+    pthread_mutex_init(&term_var,NULL);
     while(1){
         printf("[MAIN] Server in attesa di una connessione...\n");
         LOGFILEAPPEND("[MAIN] Server in attesa di una connessione...\n");
         //Copio il set nella variabile per la select
         rdset=set;
+
+        pthread_mutex_lock(&term_var);
+        printf("Prima Select -> Terminated = %d\n",terminated);
+        if(terminated==n_workers){
+            printf("[MAIN] esco dal while della select\n");
+            pthread_mutex_unlock(&term_var);
+            break;
+        }
+        pthread_mutex_unlock(&term_var);
+
         if(select(fd_max+1,&rdset,NULL,NULL,NULL)==-1){
             perror("Errore nella 'select'");
             goto exit;
         }
-        //printf("[MAIN] SELECT\n");
+
+        pthread_mutex_lock(&term_var);
+        printf("Dopo select -> Terminated = %d\n",terminated);
+        if(terminated==n_workers){
+            printf("[MAIN] esco dal while della select\n");
+            pthread_mutex_unlock(&term_var);
+            break;
+        }
+        pthread_mutex_unlock(&term_var);
+
         //Cerchiamo di capire da quale fd abbiamo ricevuto una richiesta
         for(int i=0;i<=fd_max;i++){
-            //printf("[MAIN] Analizzo il FD %d\n",i);
             if(FD_ISSET(i,&rdset)){ 
                 if(i==listen_fd){ //è una nuova richiesta di connessione! 
                     SYSCALL(connection_fd,accept(listen_fd,(struct sockaddr*)NULL,0),"Errore nella 'accept'");        
@@ -138,12 +158,16 @@ int main(){
                     SYSCALL(byte_read,read(wtm_pipe[0],&received_fd,4),"Errore nella 'read' del fd restituito dal worker");
                     SYSCALL(byte_read,read(wtm_pipe[0],&finished,4),"Errore nella 'read' del flag di terminazione client proveniente dal worker");
                     if(finished){
-                        printf("[MAIN] Il client sul fd %d ha eseguito una operazione ed è TERMINATO\n",received_fd);
-                        printf("[MAIN] Chiudiamo la connessione sul fd %d\n",received_fd);
-                        FD_CLR(received_fd,&set);
-                        Search_New_Max_FD(set,fd_max);
-                        int e;
-                        SYSCALL(e,close(received_fd),"Errore nella chiusura del fd restituito dal worker");
+                        if(received_fd!=-1){
+                            printf("[MAIN] Il client sul fd %d ha eseguito una operazione ed è TERMINATO\n",received_fd);
+                            FD_CLR(received_fd,&set);
+                            Search_New_Max_FD(set,fd_max);
+                            int e;
+                            printf("[MAIN] Chiudiamo la connessione sul fd %d\n",received_fd);
+                            SYSCALL(e,close(received_fd),"Errore nella chiusura del fd restituito dal worker");
+                        }else{
+                            //pthread_cond_signal(&list_not_empty);
+                        }
                     }else{
                         printf("[MAIN] Il client sul fd %d ha eseguito una operazione e non è terminato\n",received_fd);
                         FD_SET(received_fd,&set);
@@ -162,21 +186,35 @@ int main(){
     }
 
     exit:
+        printf("\n##### Procedura di uscita #####\n\n");
+        /*
         close(listen_fd);
         //-----Distruzione dello Storage
         hash_dump(stdout,storage,print_stored_file_info);
         CHECKRETURNVALUE(ctrl,DestroyStorage(),"Errore distruggendo lo storage",;);
+        */
 
+    //-----CHIUSURA DELLE RISORSE-----
+    close(listen_fd);
+    for(int i=0;i<n_workers;i++){
+        printf("Aspetto la terminazione del thread %d\n",i);
+        //pthread_cancel(threadpool[i]);
+        pthread_join(threadpool[i],NULL);
+        //free(&threadpool[i]);
+    }
+    printf("Aspetto la terminazione del signal handler thread\n");
+    pthread_join(signal_handler_thread,NULL);
+    free(threadpool);
+    list_destroy(queue);
+    printf("HO DISTRUTTO LA LISTA\n");
+    CHECKRETURNVALUE(ctrl,DestroyStorage(),"Errore distruggendo lo storage",;);
+    printf("HO DISTRUTTO LO STORAGEEEEEEEEEEEEE\n");
     LOGFILEAPPEND("Server spento!\n");
-    
     //Chiudiamo il file di log
     if(fclose(logfile)!=0){
         perror("Errore in chiusura del file di log");
         return -1;
     }
-    
-    printf("aspetto il signal handler thread\n");
-    pthread_join(signal_handler_thread,NULL);
     return 0;    
 }
 
@@ -188,12 +226,13 @@ void* WorkerFun(void* p){
     int op_return;
     while(condition){
         //Estraiamo un fd dalla coda
-        //printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
+        printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
         int current_fd=list_pop(&queue);
         //printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
         if(current_fd==-1){ //Se estraggo -1 dalla coda devo terminare forzatamente
             printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
             condition=0;
+            pthread_cond_signal(&list_not_empty);
         }else{
             int operation;
             SYSCALL(ctrl,read(current_fd,&operation,4),"Errore nella 'read' dell'operazione");
@@ -206,14 +245,12 @@ void* WorkerFun(void* p){
             switch(op_return){
                 case 0:
                     printf("[WORKER %ld] Operazione %d andata a buon fine\n",pthread_self(),operation);
-                    SYSCALL(ctrl,write(current_fd,"OK",2),"Errore nella 'write' del fd al client");
                     break;
                 case 1:
                     printf("[WORKER %ld] Operazione %d andata a buon fine, ESCO\n",pthread_self(),operation);
                     break;
                 case -1:
                     printf("[WORKER %ld] Operazione %d fallita\n",pthread_self(),operation);
-                    SYSCALL(ctrl,write(current_fd,"NO",2),"Errore nella 'write' del NO al client");
                     break;
             }
         }
@@ -228,7 +265,13 @@ void* WorkerFun(void* p){
             SYSCALL(ctrl,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
         }
     }
+    printf("[WORKER %ld] Sono terminato\n",pthread_self());
+    pthread_mutex_lock(&term_var);
+    terminated++;
+    printf("Ho variato terminated che ora e' %d\n",terminated);
+    pthread_mutex_unlock(&term_var);
     fflush(stdout);
+    //pthread_exit((void*)0);
     return NULL;
 }
 
@@ -241,22 +284,22 @@ void* SignalHandlerFun(void* arg){
         CHECKRETURNVALUE(ret,sigwait(set,&sig),"Errore nella 'sigwait' in SignalHandlerFun",return NULL);
 
         switch (sig){
-        case SIGINT:
-            printf("Ricevuto SIGINT\n");
-            fflush(stdout);
-            /*
-            list_push_terminators(&queue,n_workers);
-            forced_term=1;
-            */
-            condition=0;
-            break;
-        case SIGHUP:
-            graceful_term=1;
-            break;
-        default:
-            break;
+            case SIGINT:
+                printf("Ricevuto SIGINT\n");
+                fflush(stdout);
+                list_push_terminators(&queue,n_workers);
+                forced_term=1;
+                condition=0;
+                break;
+            case SIGHUP:
+                graceful_term=1;
+                break;
+            default:
+                break;
         }
     }
+    printf("Signal Handler Thread TERMINATO\n");
+    fflush(stdout);
     return NULL;
 }
 
