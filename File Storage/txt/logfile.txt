@@ -1,7 +1,0 @@
-Creazione del file di log avvenuta con successo!
---------------------
-Server impostato con configurazione di default
---------------------
-Server acceso!
---------------------
-Server in attesa di una connessione...
