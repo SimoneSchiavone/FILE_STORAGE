@@ -91,14 +91,11 @@ void * hash_find(hash_t *ht, void* key){
     entry_t* curr;
     unsigned int hash_val;
     if(!ht || !key) return NULL;
-    pthread_mutex_lock(&mutex_storage);
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
     for (curr=ht->buckets[hash_val]; curr != NULL; curr=curr->next)
         if ( ht->hash_key_compare(curr->key, key)){
-            pthread_mutex_unlock(&mutex_storage);
             return(curr->data);
         }
-    pthread_mutex_unlock(&mutex_storage);
     return NULL;
 }
 
@@ -120,12 +117,10 @@ int hash_insert(hash_t *ht, void* key, void *data){
         perror("Parametri NULL");
         return 1;
     } 
-    pthread_mutex_lock(&mutex_storage);
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
     for (curr=ht->buckets[hash_val]; curr != NULL; curr=curr->next){
         if ( ht->hash_key_compare(curr->key, key)){
             printf("Il file è già presente nello storage\n");
-            pthread_mutex_unlock(&mutex_storage);
             return 2; /* key already exists */
         }
     }
@@ -133,7 +128,6 @@ int hash_insert(hash_t *ht, void* key, void *data){
     curr = (entry_t*)malloc(sizeof(entry_t));
     if(!curr){
         perror("Malloc nuova entry hash table");
-        pthread_mutex_unlock(&mutex_storage);
         return 3;
     }
     curr->key = key;
@@ -141,7 +135,6 @@ int hash_insert(hash_t *ht, void* key, void *data){
     curr->next = ht->buckets[hash_val]; /* add at start */
     ht->buckets[hash_val] = curr;
     ht->nentries++;
-    pthread_mutex_unlock(&mutex_storage);
     return 0;
 }
 
@@ -214,7 +207,6 @@ int hash_delete(hash_t *ht, void* key, void (*free_key)(void*), void (*free_data
     if(!ht || !key) return -1;
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
     prev = NULL;
-    pthread_mutex_lock(&mutex_storage);
     for (curr=ht->buckets[hash_val]; curr != NULL; )  {
         if ( ht->hash_key_compare(curr->key, key)) {
             if (prev == NULL) {
@@ -226,13 +218,11 @@ int hash_delete(hash_t *ht, void* key, void (*free_key)(void*), void (*free_data
             if (*free_data && curr->data) (*free_data)(curr->data);
             ht->nentries--;
             free(curr);
-            pthread_mutex_unlock(&mutex_storage);
             return 0;
         }
         prev = curr;
         curr = curr->next;
     }
-    pthread_mutex_unlock(&mutex_storage);
     return -1;
 }
 

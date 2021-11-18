@@ -120,9 +120,9 @@ int main(){
         rdset=set;
 
         pthread_mutex_lock(&term_var);
-        printf("Prima Select -> Terminated = %d\n",terminated);
+        //printf("Prima Select -> Terminated = %d\n",terminated);
         if(terminated==n_workers){
-            printf("[MAIN] esco dal while della select\n");
+            //printf("[MAIN] esco dal while della select\n");
             pthread_mutex_unlock(&term_var);
             break;
         }
@@ -134,9 +134,9 @@ int main(){
         }
 
         pthread_mutex_lock(&term_var);
-        printf("Dopo select -> Terminated = %d\n",terminated);
+        //printf("Dopo select -> Terminated = %d\n",terminated);
         if(terminated==n_workers){
-            printf("[MAIN] esco dal while della select\n");
+            //printf("[MAIN] esco dal while della select\n");
             pthread_mutex_unlock(&term_var);
             break;
         }
@@ -215,31 +215,33 @@ int main(){
         perror("Errore in chiusura del file di log");
         return -1;
     }
+    /*
+    pthread_mutex_destroy(&mutex_storage);
+    pthread_mutex_destroy(&mutex_logfile);
+    pthread_mutex_destroy(&term_var);
+    */
     return 0;    
 }
 
 void* WorkerFun(void* p){
-    printf("[WORKER %ld] Ho iniziato la mia esecuzione!\n",pthread_self());
+    //printf("[WORKER %ld] Ho iniziato la mia esecuzione!\n",pthread_self());
     int pipe_fd=*((int*)p);
     int condition=1;
     int ctrl;
     int op_return;
     while(condition){
         //Estraiamo un fd dalla coda
-        printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
+        //printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
         int current_fd=list_pop(&queue);
         //printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
         if(current_fd==-1){ //Se estraggo -1 dalla coda devo terminare forzatamente
-            printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
+            //printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
             condition=0;
             pthread_cond_signal(&list_not_empty);
         }else{
             int operation;
             SYSCALL(ctrl,read(current_fd,&operation,4),"Errore nella 'read' dell'operazione");
-            if(LogFileAppend("[WORKER %ld] Ho ricevuto la seguente richiesta: %d\n",pthread_self(),operation)==-1){
-                perror("Errore nella scrittura del logfile");
-                break;
-            }
+            LOGFILEAPPEND("[WORKER %ld] Ho ricevuto la seguente richiesta: %d\n",pthread_self(),operation);
             printf("[WORKER %ld] Ho ricevuto la seguente richiesta: %d\n",pthread_self(),operation);
             op_return=ExecuteRequest(operation,current_fd);
             switch(op_return){
@@ -265,13 +267,14 @@ void* WorkerFun(void* p){
             SYSCALL(ctrl,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
         }
     }
-    printf("[WORKER %ld] Sono terminato\n",pthread_self());
+    //printf("[WORKER %ld] Sono terminato\n",pthread_self());
     pthread_mutex_lock(&term_var);
     terminated++;
-    printf("Ho variato terminated che ora e' %d\n",terminated);
+    //printf("Ho variato terminated che ora e' %d\n",terminated);
     pthread_mutex_unlock(&term_var);
     fflush(stdout);
     //pthread_exit((void*)0);
+    pthread_attr_destroy(p);
     return NULL;
 }
 
@@ -300,6 +303,7 @@ void* SignalHandlerFun(void* arg){
     }
     printf("Signal Handler Thread TERMINATO\n");
     fflush(stdout);
+    pthread_attr_destroy(arg);
     return NULL;
 }
 

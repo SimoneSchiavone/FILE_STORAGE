@@ -12,6 +12,7 @@
 #include <time.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); return(-1);}
 
@@ -90,14 +91,12 @@ int openFile(char* pathname,int o_create,int o_lock){
     SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
     printf("Dimensione della risposta: %d\n",dim);
     char* response=(char*)calloc(dim+1,sizeof(char));
-    if(response==NULL)
+    if(response==NULL){
+        perror("Malloc");
         return EXIT_FAILURE;
+    }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
     printf("[OpenFile]Ho ricevuto dal server %s\n",response);
-    /*
-    if(strncmp(response,"OK",2)!=0)
-        return EXIT_FAILURE;
-        */
     free(response);
     /*
     SYSCALL(n,read(fd_connection,buffer,BUFFDIM),"Errore nella read");
@@ -112,21 +111,22 @@ int openFile(char* pathname,int o_create,int o_lock){
 }
 
 int readFile(char* pathname,void** buf,size_t* size){
+    /*
     if(!pathname || !buf || !size){
         errno=EINVAL;
         perror("Errore parametri nulli");
         return -1;
-    }
+    }*/
     //TODO Mettere const char...
-    int op=3,dim=strlen(pathname)+1,ctrl;
+    int op=4,dim=strlen(pathname)+1,ctrl;
     //Invio il codice comando
     SYSCALL(ctrl,write(fd_connection,&op,4),"Errore nella 'write' del codice comando");
-    //Invio la dimensione di pathname
+
+    //Invio la dimensione di pathname e pathname
     SYSCALL(ctrl,write(fd_connection,&dim,4),"Errore nella 'write' della dimensione del pathname");
-    //Invio la stringa pathname
     SYSCALL(ctrl,write(fd_connection,pathname,dim),"Errore nella 'write' di pathname");
 
-    //Attendo dimensione della risposta
+    //Ricevo dimensione della risposta e risposta
     SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
     printf("Dimensione della risposta: %d\n",dim);
     char* response=(char*)calloc(dim+1,sizeof(char));
@@ -135,13 +135,28 @@ int readFile(char* pathname,void** buf,size_t* size){
         return -1;
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    printf("[OpenFile]Ho ricevuto dal server %s\n",response);
+    printf("[ReadFile]Ho ricevuto dal server %s\n",response);
+    
+    //Interpretazione della risposta ed eventuale lettura del contenuto
+    char ok[100];
+    sprintf(ok,"Il file %s e' stato trovato nello storage, ecco il contenuto",pathname);
+    if(strncmp(response,ok,strlen(ok))==0){
+        //Il file e' stato trovato nello storage, procedo alla lettura del contenuto    
+        SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione del contenuto");
+        char* content=(char*)calloc(dim,sizeof(char));
+        if(content==NULL){
+            perror("Malloc content");
+            free(response);
+            return -1;
+        }
+        SYSCALL(ctrl,read(fd_connection,content,dim),"Errore nella 'read' del contenuto");
+        printf("Contenuto di %s\n %s\n",pathname,content);
+        free(content);
+        free(response);
+        return 0;
+    }
     free(response);
-
-    //Attendo l'indirizzo (dimensione 8)
-    SYSCALL(ctrl,read(fd_connection,buf,8),"Errore nella 'read' della risposta");
-    printf("Indirizzo area di memoria %p\n",*buf);
-    return 0;
+    return -1;
 }
 
 int writeFile(char* pathname,char* dirname){
@@ -151,6 +166,7 @@ int writeFile(char* pathname,char* dirname){
         perror("Parametri nulli");
         return -1;
     }
+
     //Apertura del file
     FILE* to_send;
     if((to_send=fopen(pathname,"r"))==NULL){
@@ -174,7 +190,8 @@ int writeFile(char* pathname,char* dirname){
     //Leggo il file
     int n=(int)fread(read_file,sizeof(char),filedim,to_send);
     read_file[filedim]='\0';
-    printf("Ho letto %d bytes\nFILE LETTO:\n%s",n,read_file);
+    printf("Ho letto %d bytes\n",n);
+    //printf("Ho letto %d bytes\nFILE LETTO:\n%s",n,read_file);
     //Chiudo il file
     if(fclose(to_send)==-1){
         perror("Errore fclose file da inviare");
@@ -195,6 +212,106 @@ int writeFile(char* pathname,char* dirname){
     printf("Ho scritto %d bytes\n",ctrl);
     free(read_file);
 
+    //Ciclo per l'acquisizione degli eventuali file espulsi
+    if(dirname){ //Solo se l'utente ha specificato una directory per la memorizzazione dei file espulsi
+        int flag=1;
+        SYSCALL(ctrl,write(fd_connection,&flag,sizeof(int)),"Errore nella 'write' dell flag di restituzione file");
+        printf("Ho inviato il flag 1 per dirgli che voglio avere i file espulsi\n");
+
+        //Attendo l'autorizzazione
+        int authorized=-1;
+        SYSCALL(ctrl,read(fd_connection,&authorized,sizeof(int)),"Errore nella ricezione del bit di autorizzazione");
+        printf("Ho ricevuto il bit di autorizzazione %d\n",authorized);
+
+        if(!authorized){
+            printf("Non sei autorizzato alla scrittura del file %s!\n",pathname);
+            return -1;
+        }
+
+        //Verifico che dirname sia effettivamente una cartella
+        DIR* destination=opendir(dirname);
+        if(!destination){
+            if(errno=ENOENT){ //Se la cartella non esiste la creo
+                mkdir(dirname,0777);
+                destination=opendir(dirname);
+                printf("Cartella per i file espulsi non trovata, la creo\n");
+                if(!destination){
+                    perror("Errore nell'apertura della cartella di destinazione dei file espulsi");
+                    return -1;
+                }
+            }
+        }
+        printf("Ho aperto la cartella\n");
+        int expelled_files_to_send;
+        do{
+            SYSCALL(ctrl,read(fd_connection,&expelled_files_to_send,sizeof(int)),"Errore nella 'read' del flag expelled_file");
+            printf("C'e' qualche file da ricevere dal server?%d\n",expelled_files_to_send);
+
+            if(expelled_files_to_send){ //C'e' qualche file da ricevere
+                int dim_name,dim_content;
+
+                //-----Lettura del nome del file espulso
+                SYSCALL(ctrl,read(fd_connection,&dim_name,sizeof(int)),"Errore nella 'read' della dimensione del nome del file espulso");
+                char* buffer_name=(char*)calloc(dim_name,sizeof(char));
+                if(!buffer_name){
+                    perror("Calloc");
+                    return -1;
+                }
+                SYSCALL(ctrl,read(fd_connection,buffer_name,dim_name),"Errore nella 'read' del nome del file espulso");
+                printf("Devo ricevere il file con nome %s dim %d\n",buffer_name,dim_name);
+
+                //-----Lettura del file espulso
+                SYSCALL(ctrl,read(fd_connection,&dim_content,sizeof(int)),"Errore nella 'read' della dimensione del file espulso");
+                char* buffer_content=(char*)calloc(dim_content,sizeof(char));
+                if(!buffer_content){
+                    free(buffer_name);
+                    perror("Calloc");
+                    return -1;
+                }
+                SYSCALL(ctrl,read(fd_connection,buffer_content,dim_content),"Errore nella 'read' del file espulso");
+                printf("Ho ricevuto il contenuto %s di dim %d\n",buffer_content,dim_content);
+
+                //Vado nella cartella destinazione
+                chdir(dirname);
+                char cwd[128];
+                getcwd(cwd,sizeof(cwd));
+                printf("Sono nella cartella %s\n",cwd);
+
+                //Scrivo il nuovo file
+                FILE* expelled_file=fopen(buffer_name,"w");
+                if(!expelled_file){
+                    free(buffer_name);
+                    free(buffer_content);
+                    return -1;
+                }
+                printf("Ho aperto il file!");
+                free(buffer_name);
+                fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file);
+                printf("Ho scritto il file\n");
+                free(buffer_content);
+                if(fclose(expelled_file)==-1){
+                    perror("Errore nella chiusura del file");
+                    return -1;
+                }
+
+                chdir("..");
+                memset(cwd,'\0',128);
+                getcwd(cwd,sizeof(cwd));
+                printf("Sono nella cartella %s\n",cwd);
+            }   
+        }while(expelled_files_to_send);
+
+        
+
+        if(closedir(destination)==-1){
+            perror("Errore in chiusura della cartella di destinazione dei file espulsi");
+            return -1;
+        }
+    }else{
+        int flag=0;
+        SYSCALL(ctrl,write(fd_connection,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
+    }
+   
     //Leggo dal server la dimensione della risposta
     int dim=256;
     printf("ASPETTO UNA RISPOSTA\n");
@@ -206,7 +323,266 @@ int writeFile(char* pathname,char* dirname){
     if(response==NULL)
         return EXIT_FAILURE;
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    printf("Ho ricevuto dal server %s\n",response);
+    printf("Ho ricevuto dal server: %s\n",response);
+
+    free(response);
+    return 0;
+}
+
+int lockFile(char* pathname){
+    //Controllo parametro pathname
+    if(!pathname){
+        errno=EINVAL;
+        perror("Parametri nulli");
+        return -1;
+    }
+
+    //Invio al server il codice comando
+    int op=8,ctrl,dim;
+    SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
+
+    //Invio pathname
+    int pathdim=strlen(pathname)+1;
+    SYSCALL(ctrl,write(fd_connection,&pathdim,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+    SYSCALL(ctrl,write(fd_connection,pathname,pathdim),"Errore nell'invio del pathname al server");
+
+    //Leggo la dimensione della risposta e la risposta
+    SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
+    char* response=(char*)calloc(dim+1,sizeof(char));
+    if(response==NULL){
+        perror("Calloc");
+        return -1;
+    }
+    SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
+    printf("%s\n",response);
+    free(response);
+    return EXIT_SUCCESS;
+}
+
+int unlockFile(char* pathname){
+    if(!pathname){
+        errno=EINVAL;
+        perror("Parametri nulli");
+        return -1;
+    }
+    
+    //Invio al server il codice comando
+    int op=9,ctrl,dim;
+    SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
+
+    //Invio pathname
+    int pathdim=strlen(pathname)+1;
+    SYSCALL(ctrl,write(fd_connection,&pathdim,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+    SYSCALL(ctrl,write(fd_connection,pathname,pathdim),"Errore nell'invio del pathname al server");
+
+    //Leggo la dimensione della risposta e la risposta
+    SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
+    char* response=(char*)calloc(dim+1,sizeof(char));
+    if(response==NULL){
+        perror("Calloc");
+        return -1;
+    }
+    SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
+    printf("%s\n",response);
+    free(response);
+    return EXIT_SUCCESS;
+}
+
+int removeFile(char* pathname){
+    if(!pathname){
+        errno=EINVAL;
+        perror("Parametri nulli");
+        return -1;
+    }
+    
+    //Invio al server il codice comando
+    int op=11,ctrl,dim;
+    SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
+
+    //Invio pathname
+    int pathdim=strlen(pathname)+1;
+    SYSCALL(ctrl,write(fd_connection,&pathdim,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+    SYSCALL(ctrl,write(fd_connection,pathname,pathdim),"Errore nell'invio del pathname al server");
+
+    //Leggo la dimensione della risposta e la risposta
+    SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
+    char* response=(char*)calloc(dim+1,sizeof(char));
+    if(response==NULL){
+        perror("Calloc");
+        return -1;
+    }
+    SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
+    printf("%s\n",response);
+    free(response);
+    return EXIT_SUCCESS;
+}
+
+int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
+    //Controllo parametro pathname
+    if(pathname==NULL || buf==NULL){
+        errno=EINVAL;
+        perror("Parametri nulli");
+        return -1;
+    }
+
+    //Apertura del file
+    FILE* to_send;
+    if((to_send=fopen(pathname,"r"))==NULL){
+        perror("Errore nell'apertura da inviare al server");
+        return -1;
+    }
+    int size,ctrl;
+    //Determinazione della dimensione del file
+    struct stat st;
+    SYSCALL(ctrl,stat(pathname, &st),"Errore nella 'stat'");
+    size = st.st_size;
+    int filedim=(int)size; 
+    printf("DIMENSIONE DEL FILE: %d\n",filedim);
+    //Alloco un buffer per la lettura del file
+    char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
+    if(read_file==NULL){
+        perror("Calloc buffer lettura file da inviare");
+        fclose(to_send);
+        return -1;
+    }
+    //Leggo il file
+    int n=(int)fread(read_file,sizeof(char),filedim,to_send);
+    read_file[filedim]='\0';
+    printf("Ho letto %d bytes\n",n);
+    //printf("Ho letto %d bytes\nFILE LETTO:\n%s",n,read_file);
+    //Chiudo il file
+    if(fclose(to_send)==-1){
+        perror("Errore fclose file da inviare");
+        return -1;
+    }
+    //Invio al server il codice comando
+    int op=6; filedim++;
+    SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
+
+    //Invio pathname
+    int pathdim=strlen(pathname)+1;
+    SYSCALL(ctrl,write(fd_connection,&pathdim,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+    SYSCALL(ctrl,write(fd_connection,pathname,pathdim),"Errore nell'invio del pathname al server");
+
+    //Invio al server il file letto
+    SYSCALL(ctrl,write(fd_connection,&filedim,sizeof(int)),"Errore nella 'write' della dimensione (WriteFile)");
+    SYSCALL(ctrl,write(fd_connection,read_file,filedim),"Errore nella 'write' della dimensione");
+    printf("Ho scritto %d bytes\n",ctrl);
+    free(read_file);
+
+    //Ciclo per l'acquisizione degli eventuali file espulsi
+    if(dirname){ //Solo se l'utente ha specificato una directory per la memorizzazione dei file espulsi
+        int flag=1;
+        SYSCALL(ctrl,write(fd_connection,&flag,sizeof(int)),"Errore nella 'write' dell flag di restituzione file");
+        printf("Ho inviato il flag 1 per dirgli che voglio avere i file espulsi\n");
+
+        //Attendo l'autorizzazione
+        int authorized=-1;
+        SYSCALL(ctrl,read(fd_connection,&authorized,sizeof(int)),"Errore nella ricezione del bit di autorizzazione");
+        printf("Ho ricevuto il bit di autorizzazione %d\n",authorized);
+
+        if(!authorized){
+            printf("Non sei autorizzato alla scrittura del file %s!\n",pathname);
+            return -1;
+        }
+
+        //Verifico che dirname sia effettivamente una cartella
+        DIR* destination=opendir(dirname);
+        if(!destination){
+            if(errno=ENOENT){ //Se la cartella non esiste la creo
+                mkdir(dirname,0777);
+                destination=opendir(dirname);
+                printf("Cartella per i file espulsi non trovata, la creo\n");
+                if(!destination){
+                    perror("Errore nell'apertura della cartella di destinazione dei file espulsi");
+                    return -1;
+                }
+            }
+        }
+        printf("Ho aperto la cartella\n");
+        int expelled_files_to_send;
+        do{
+            SYSCALL(ctrl,read(fd_connection,&expelled_files_to_send,sizeof(int)),"Errore nella 'read' del flag expelled_file");
+            printf("C'e' qualche file da ricevere dal server?%d\n",expelled_files_to_send);
+
+            if(expelled_files_to_send){ //C'e' qualche file da ricevere
+                int dim_name,dim_content;
+
+                //-----Lettura del nome del file espulso
+                SYSCALL(ctrl,read(fd_connection,&dim_name,sizeof(int)),"Errore nella 'read' della dimensione del nome del file espulso");
+                char* buffer_name=(char*)calloc(dim_name,sizeof(char));
+                if(!buffer_name){
+                    perror("Calloc");
+                    return -1;
+                }
+                SYSCALL(ctrl,read(fd_connection,buffer_name,dim_name),"Errore nella 'read' del nome del file espulso");
+                printf("Devo ricevere il file con nome %s dim %d\n",buffer_name,dim_name);
+
+                //-----Lettura del file espulso
+                SYSCALL(ctrl,read(fd_connection,&dim_content,sizeof(int)),"Errore nella 'read' della dimensione del file espulso");
+                char* buffer_content=(char*)calloc(dim_content,sizeof(char));
+                if(!buffer_content){
+                    free(buffer_name);
+                    perror("Calloc");
+                    return -1;
+                }
+                SYSCALL(ctrl,read(fd_connection,buffer_content,dim_content),"Errore nella 'read' del file espulso");
+                printf("Ho ricevuto il contenuto %s di dim %d\n",buffer_content,dim_content);
+
+                //Vado nella cartella destinazione
+                chdir(dirname);
+                char cwd[128];
+                getcwd(cwd,sizeof(cwd));
+                printf("Sono nella cartella %s\n",cwd);
+
+                //Scrivo il nuovo file
+                FILE* expelled_file=fopen(buffer_name,"w");
+                if(!expelled_file){
+                    free(buffer_name);
+                    free(buffer_content);
+                    return -1;
+                }
+                printf("Ho aperto il file!");
+                free(buffer_name);
+                fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file);
+                printf("Ho scritto il file\n");
+                free(buffer_content);
+                if(fclose(expelled_file)==-1){
+                    perror("Errore nella chiusura del file");
+                    return -1;
+                }
+
+                chdir("..");
+                memset(cwd,'\0',128);
+                getcwd(cwd,sizeof(cwd));
+                printf("Sono nella cartella %s\n",cwd);
+            }   
+        }while(expelled_files_to_send);
+
+        
+
+        if(closedir(destination)==-1){
+            perror("Errore in chiusura della cartella di destinazione dei file espulsi");
+            return -1;
+        }
+    }else{
+        int flag=0;
+        SYSCALL(ctrl,write(fd_connection,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
+    }
+   
+    //Leggo dal server la dimensione della risposta
+    int dim=256;
+    printf("ASPETTO UNA RISPOSTA\n");
+    SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione della risposta");
+    printf("Dimensione della risposta: %d\n",dim);
+
+    //Alloco un buffer per leggere la risposta del server
+    char* response=(char*)calloc(dim+1,sizeof(char));
+    if(response==NULL)
+        return EXIT_FAILURE;
+    SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
+    printf("Ho ricevuto dal server: %s\n",response);
+
     free(response);
     return 0;
 }
