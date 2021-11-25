@@ -24,7 +24,6 @@ typedef struct hash_s {
 
 typedef hash_t hash_table_t;
 typedef entry_t hash_table_entry;
-pthread_mutex_t mutex_storage;
 
 hash_t* hash_create( int nbuckets, unsigned int (*hash_function)(void*), int (*hash_key_compare)(void*, void*) );
 void* hash_find(hash_t *, void* );

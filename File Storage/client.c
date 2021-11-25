@@ -1,3 +1,13 @@
+/*Realizzare un programma C che implementa un server che rimane sempre attivo 
+in attesa di richieste da parte di uno o piu' processi client su una socket di 
+tipo AF_UNIX. Ogni client richiede al server la trasformazione di tutti i 
+caratteri di una stringa da minuscoli a maiuscoli (es. ciao –> CIAO). Per ogni 
+nuova connessione il server lancia un thread POSIX che gestisce tutte le richieste
+del client (modello “un thread per connessione” – i thread sono spawnati in modalità detached)
+e quindi termina la sua esecuzione quando il client chiude la connessione. Per testare il 
+programma, lanciare piu' processi client ognuno dei quali invia una o piu' richieste 
+al server multithreaded.*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,8 +82,7 @@ int main(int argc,char** argv){
 
     //DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
     printf("Enableprinting:%d\n",enable_printing);
-    
-    
+     
     struct timespec a;
     a.tv_sec=15;
 
@@ -88,21 +97,51 @@ int main(int argc,char** argv){
     }
     //char name[]="/Topolino\0";
     //printf("Dimensione: %ld Stringa: %s\n",strlen(name),name);
+
     printf("\n\n*****OPEN FILE TOPOLINO*****\n");
     openFile("topolino.txt\0",1,1);
+
+    sleep(1);
+
     printf("\n\n*****WRITE FILE TOPOLINO*****\n");
     writeFile("topolino.txt\0","Espulsi");
+
+    sleep(1);
+
     printf("\n\n*****READ FILE TOPOLINO*****\n");
     readFile("topolino.txt\0",NULL,NULL);
+
+    sleep(1);
+
+    printf("\n\n*****APPEND TO FILE TOPOLINO*****\n");
+    char* to_append="CIAONE\0";    
+    appendToFile("topolino.txt\0",to_append,strlen(to_append)+1,"Espulsi");
+
+    sleep(1);
+
+    printf("\n\n*****READ FILE TOPOLINO*****\n");
+    readFile("topolino.txt\0",NULL,NULL);
+
+    sleep(1);
+
     printf("\n\n*****UNLOCK FILE TOPOLINO*****\n");
     unlockFile("topolino.txt\0");
+
+    sleep(1);
+
     printf("\n\n*****REMOVE FILE TOPOLINO*****\n");
     removeFile("topolino.txt\0");
+
+    sleep(1);
+
     printf("\n\n*****LOCK FILE TOPOLINO*****\n");
     lockFile("topolino.txt\0");
+
+    sleep(1);
+    
     printf("\n\n*****REMOVE FILE TOPOLINO*****\n");
     removeFile("topolino.txt\0");
-    
+
     /*
     sleep(5);
     printf("\n\n*****OPEN FILE MINNIE*****\n");

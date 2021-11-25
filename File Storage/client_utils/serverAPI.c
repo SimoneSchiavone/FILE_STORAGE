@@ -225,7 +225,7 @@ int writeFile(char* pathname,char* dirname){
 
         if(!authorized){
             printf("Non sei autorizzato alla scrittura del file %s!\n",pathname);
-            return -1;
+            goto read_1;
         }
 
         //Verifico che dirname sia effettivamente una cartella
@@ -313,8 +313,9 @@ int writeFile(char* pathname,char* dirname){
     }
    
     //Leggo dal server la dimensione della risposta
-    int dim=256;
+    read_1:
     printf("ASPETTO UNA RISPOSTA\n");
+    int dim=256;
     SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione della risposta");
     printf("Dimensione della risposta: %d\n",dim);
 
@@ -425,38 +426,12 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
         return -1;
     }
 
-    //Apertura del file
-    FILE* to_send;
-    if((to_send=fopen(pathname,"r"))==NULL){
-        perror("Errore nell'apertura da inviare al server");
-        return -1;
-    }
-    int size,ctrl;
-    //Determinazione della dimensione del file
-    struct stat st;
-    SYSCALL(ctrl,stat(pathname, &st),"Errore nella 'stat'");
-    size = st.st_size;
-    int filedim=(int)size; 
-    printf("DIMENSIONE DEL FILE: %d\n",filedim);
-    //Alloco un buffer per la lettura del file
-    char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
-    if(read_file==NULL){
-        perror("Calloc buffer lettura file da inviare");
-        fclose(to_send);
-        return -1;
-    }
-    //Leggo il file
-    int n=(int)fread(read_file,sizeof(char),filedim,to_send);
-    read_file[filedim]='\0';
-    printf("Ho letto %d bytes\n",n);
-    //printf("Ho letto %d bytes\nFILE LETTO:\n%s",n,read_file);
-    //Chiudo il file
-    if(fclose(to_send)==-1){
-        perror("Errore fclose file da inviare");
-        return -1;
-    }
+    /*  ATTENZIONE, NON BISOGNA APPENDERE UN FILE MA MI SOGNA APPENDERE SIZE BYTES DAL BUFFER PASSATO PER PARAMETRO
+    QUINDI RIVEDERE TUTTE QUESTE COSE INUTILI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+    int ctrl;
+   
     //Invio al server il codice comando
-    int op=6; filedim++;
+    int op=7;
     SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
 
     //Invio pathname
@@ -465,10 +440,11 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
     SYSCALL(ctrl,write(fd_connection,pathname,pathdim),"Errore nell'invio del pathname al server");
 
     //Invio al server il file letto
-    SYSCALL(ctrl,write(fd_connection,&filedim,sizeof(int)),"Errore nella 'write' della dimensione (WriteFile)");
-    SYSCALL(ctrl,write(fd_connection,read_file,filedim),"Errore nella 'write' della dimensione");
+    int s=(int)size;
+    printf("La dimensione del buffer e' %d\n",s);
+    SYSCALL(ctrl,write(fd_connection,&s,sizeof(int)),"Errore nella 'write' della dimensione (WriteFile)");
+    SYSCALL(ctrl,write(fd_connection,buf,s),"Errore nella 'write' della dimensione");
     printf("Ho scritto %d bytes\n",ctrl);
-    free(read_file);
 
     //Ciclo per l'acquisizione degli eventuali file espulsi
     if(dirname){ //Solo se l'utente ha specificato una directory per la memorizzazione dei file espulsi
@@ -483,7 +459,7 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
 
         if(!authorized){
             printf("Non sei autorizzato alla scrittura del file %s!\n",pathname);
-            return -1;
+            goto read_2;
         }
 
         //Verifico che dirname sia effettivamente una cartella
@@ -569,10 +545,11 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
         int flag=0;
         SYSCALL(ctrl,write(fd_connection,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
     }
-   
+
+    read_2:
+    printf("ASPETTO UNA RISPOSTA\n");
     //Leggo dal server la dimensione della risposta
     int dim=256;
-    printf("ASPETTO UNA RISPOSTA\n");
     SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione della risposta");
     printf("Dimensione della risposta: %d\n",dim);
 

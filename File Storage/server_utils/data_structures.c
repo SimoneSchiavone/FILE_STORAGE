@@ -154,7 +154,6 @@ entry_t * hash_update_insert(hash_t *ht, void* key, void *data, void **olddata){
     unsigned int hash_val;
     if(!ht || !key) return NULL;
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
-    pthread_mutex_lock(&mutex_storage);
     /* Scan bucket[hash_val] for key */
     for (prev=NULL,curr=ht->buckets[hash_val]; curr != NULL; prev=curr, curr=curr->next)
         /* If key found, remove node from list, free old key, and setup olddata for the return */
@@ -174,7 +173,6 @@ entry_t * hash_update_insert(hash_t *ht, void* key, void *data, void **olddata){
     curr = (entry_t*)malloc(sizeof(entry_t));
     if(curr == NULL){
         perror("Malloc new node");
-        pthread_mutex_unlock(&mutex_storage);
         return NULL; /* out of memory */
     }
 
@@ -184,7 +182,6 @@ entry_t * hash_update_insert(hash_t *ht, void* key, void *data, void **olddata){
 
     ht->buckets[hash_val] = curr;
     ht->nentries++;
-    pthread_mutex_unlock(&mutex_storage);
 
     if(olddata!=NULL && *olddata!=NULL)
         *olddata = NULL;
@@ -239,7 +236,6 @@ int hash_destroy(hash_t *ht, void (*free_key)(void*), void (*free_data)(void*)){
     entry_t *bucket, *curr, *next;
     int i;
     if(!ht) return -1;
-    pthread_mutex_lock(&mutex_storage);
     for (i=0; i<ht->nbuckets; i++) {
         bucket = ht->buckets[i];
         for (curr=bucket; curr!=NULL; ) {
@@ -252,7 +248,6 @@ int hash_destroy(hash_t *ht, void (*free_key)(void*), void (*free_data)(void*)){
     }
     if(ht->buckets) free(ht->buckets);
     if(ht) free(ht);
-    pthread_mutex_unlock(&mutex_storage);
     return 0;
 }
 
@@ -269,18 +264,17 @@ int hash_dump(FILE* stream, hash_t* ht,void (print_data_info)(FILE*, void*)){
     entry_t *bucket, *curr;
     int i;
     if(!ht) return -1;
-    pthread_mutex_lock(&mutex_storage);
+    fprintf(stream,"-----HASH DUMP-----\n");
     for(i=0; i<ht->nbuckets; i++) {
         bucket = ht->buckets[i];
         for(curr=bucket; curr!=NULL; ) {
             if(curr->key){
-                fprintf(stream, "hash_dump->Key: %s Location: %p ->", (char *)curr->key, curr->data);
+                fprintf(stream, "Key: %s\n\tLocation: %p\n", (char *)curr->key, curr->data);
                 print_data_info(stream,curr->data);
             }
             curr=curr->next;
         }
     }
-    pthread_mutex_unlock(&mutex_storage);
     return 0;
 }
 

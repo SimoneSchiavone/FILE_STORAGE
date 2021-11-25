@@ -19,7 +19,6 @@
             } \
 }
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
-
 /*-----Parametri di configurazione del server-----*/
 char  config_file_path[128]; //path del file testuale di configurazione
 int n_workers; // numero thread workers del modello Manager-Worker
@@ -67,6 +66,7 @@ typedef struct response{
 
 /*-----Hash Table Storage-------*/
 hash_table_t* storage;
+pthread_mutex_t mutex_storage;
 int data_size;
 int InitializeStorage();
 int DestroyStorage();

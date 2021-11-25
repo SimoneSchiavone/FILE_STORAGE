@@ -84,7 +84,7 @@ int main(){
     SYSCALL(ctrl,listen(listen_fd,max_connections),"Errore nella 'listen'");
 
     //-----Creazione threadpool-----
-    threadpool=malloc(n_workers*sizeof(pthread_t));
+    threadpool=(pthread_t*)malloc(n_workers*sizeof(pthread_t));
     queue=NULL;
     if(threadpool==NULL){
         perror("Errore nella 'malloc' del threadpool");
@@ -97,8 +97,11 @@ int main(){
     SYSCALL(tmp,pipe(wtm_pipe),"Errore nella creazione della pipe");
 
     //-----Creazione Thread Workers-----
+    pthread_t t;
     for(int i=0;i<n_workers;i++){
-            CHECKRETURNVALUE(threadpool[i],pthread_create(&threadpool[i],NULL,WorkerFun,(void*)&wtm_pipe[1]),"Errore nella creazione del thread",goto exit);
+            //CHECKRETURNVALUE(threadpool[i],pthread_create(&threadpool[i],NULL,WorkerFun,(void*)&wtm_pipe[1]),"Errore nella creazione del thread",goto exit);
+            CHECKRETURNVALUE(ctrl,pthread_create(&t,NULL,WorkerFun,(void*)&wtm_pipe[1]),"Errore nella creazione del thread",goto exit);
+            threadpool[i]=t;
     }
 
     int fd_max=0;

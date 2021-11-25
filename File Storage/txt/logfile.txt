@@ -1,0 +1,76 @@
+Creazione del file di log avvenuta con successo!
+--------------------
+Thu Nov  4 17:22:24 2021
+Server acceso!
+--------------------
+Thu Nov  4 17:22:25 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Accettata una connessione sul fd 7
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[WORKER 107448064] Ho ricevuto la seguente richiesta: 3
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[WORKER 132626176] Ho ricevuto la seguente richiesta: 6
+--------------------
+Thu Nov  4 17:22:26 2021
+Occupazione dello storage: 1094 bytes su 2048
+--------------------
+Thu Nov  4 17:22:26 2021
+Sono stati scritti 1094 bytes nel file con pathname topolino.txt
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[WORKER 124233472] Ho ricevuto la seguente richiesta: 3
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[WORKER 115840768] Ho ricevuto la seguente richiesta: 6
+--------------------
+Thu Nov  4 17:22:26 2021
+Occupazione dello storage: 1319 bytes su 2048
+--------------------
+Thu Nov  4 17:22:26 2021
+Sono stati scritti 225 bytes nel file con pathname minnie.txt
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:22:26 2021
+[WORKER 99055360] Ho ricevuto la seguente richiesta: 12
+--------------------
+Thu Nov  4 17:22:26 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:24:00 2021
+[MAIN] Server in attesa di una connessione...
+--------------------
+Thu Nov  4 17:24:00 2021
+Server spento!
