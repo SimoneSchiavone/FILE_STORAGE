@@ -264,7 +264,7 @@ int hash_dump(FILE* stream, hash_t* ht,void (print_data_info)(FILE*, void*)){
     entry_t *bucket, *curr;
     int i;
     if(!ht) return -1;
-    fprintf(stream,"-----HASH DUMP-----\n");
+    //fprintf(stream,"-----HASH DUMP-----\n");
     for(i=0; i<ht->nbuckets; i++) {
         bucket = ht->buckets[i];
         for(curr=bucket; curr!=NULL; ) {
@@ -286,7 +286,6 @@ int hash_dump(FILE* stream, hash_t* ht,void (print_data_info)(FILE*, void*)){
    This function expects a pointer to the data to be added 
    and size of the data type */
 int list_push(Node** head_ref, int new_data){ 
-    //printf("[WORKER %ld-ListPush] inizio procedura\n",pthread_self());
     // Allocate memory for node 
     Node* new_node = (Node*)malloc(sizeof(Node)); 
     if(new_node==NULL){
@@ -299,12 +298,9 @@ int list_push(Node** head_ref, int new_data){
     
     // Change head pointer as new node is added at the beginning 
     pthread_mutex_lock(&mutex_list);
-    //printf("[WORKER %ld-ListPush] lock preso\n",pthread_self());
     (*head_ref)    = new_node; 
     pthread_cond_signal(&list_not_empty);
-    //printf("[WORKER %ld-ListPush] Signal fatta\n",pthread_self());
     pthread_mutex_unlock(&mutex_list);
-    //printf("[WORKER %ld-ListPush] lock rilasciato\n",pthread_self());
     return 0;
 } 
 

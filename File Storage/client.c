@@ -18,7 +18,10 @@ al server multithreaded.*/
 #include <unistd.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <signal.h>
+
 #include "client_utils/serverAPI.h"
+#include "client_utils/clientutils.h"
 
 #define SOCKNAME "./SocketFileStorage"
 
@@ -26,40 +29,208 @@ al server multithreaded.*/
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
 #define CALLOC(r) r=(char*) calloc(BUFFDIM,sizeof(char)); if(r==NULL){ perror("calloc"); return EXIT_FAILURE;}
 
-void Welcome();
-void PrintAcceptedOptions();
+/*
+static void signal_handler(int signum){
+    switch (signum){
+        case SIGPIPE: {
+            write(1,"Errore fatale di comunicazione con il server",45);
+            abort();
+        }
+        default:{
+            abort();
+            break;
+        }
+    }
+}*/
+int error;
 
 int main(int argc,char** argv){
+    error=0;
+    backup_dir=NULL;
+    int w_or_W_to_do=0;
+
+    int ctrl;
+    struct sigaction s;
+    memset(&s, 0, sizeof(s));
+    //s.sa_handler = signal_handler;
+    s.sa_handler=SIG_IGN;
+    sigset_t set;
+    SYSCALL(ctrl,sigfillset(&set), "Errore nella sigfillset");
+    SYSCALL(ctrl,pthread_sigmask(SIG_SETMASK, &set, NULL), "Errore nella pthread_sigmask");
+    SYSCALL(ctrl,sigaction(SIGPIPE, &s, NULL), "Errore sigaction SIGINT"); //gestore per SIGPIPE
+    SYSCALL(ctrl,sigemptyset(&set), "Errore in sigemptyset");
+    SYSCALL(ctrl,pthread_sigmask(SIG_SETMASK,&set,NULL),"Errore in sigmask rimozione maschera");
+
     char* socketname=NULL;
     int enable_printing=0;
     Welcome();
 
+    operation_node* command_list=NULL;
+
     //Parsing degli argomenti da linea di comando
     int opt;
     while((opt=getopt(argc,argv,"hf:w:W:D:r:R:d:t:l:u:c:p"))!=-1){
+        printf("ANALIZZO: %c\n",opt);
         switch (opt){
-            case 'h':
+            case 'h':{
                 //Stampa la lista di tutte le opzioni accettate dal client e termina immediatamente
                 PrintAcceptedOptions();
                 goto exit;
-            case 'f':
+            }
+            case 'f':{
                 socketname=optarg;
                 break;
-            case 'w':
+            }
+            case 'w':{
                 //Invia al server i file della cartella dirname, se n=0 o non specificato non c'e' un
                 //limite al nr di file altrimenti invia n file visitando ricorsivamente la cartella
-                printf("Sono nel caso w\n");
+                char* tmp;
+                int c=1;
+                char* directory=strtok_r(optarg,",",&tmp);
+                if(!directory){
+                    fprintf(stderr,"Errore opzione -w: nome directory necessario");
+                    error=1;
+                    goto exit;
+                }else
+                    printf("Ho parsato %s\n",directory);
+                char* number=strtok_r(NULL,",",&tmp);
+                if(number){
+                    if(strtok_r(NULL,",",&tmp)){
+                        fprintf(stderr,"Errore opzione -w: troppi argomenti");
+                        error=-1;
+                        c++;
+                        goto exit;
+                    }
+                }
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    error=1;
+                    goto exit;
+                }
+                new->next=NULL;
+                //Preparazione operazione
+                new->op->op_code=3;
+                new->op->argc=c;
+                new->op->args=(char**)malloc(c*sizeof(char*)); //una o due stringhe
+
+                list_push(command_list,new);
                 break;
-            case 'W':
+            }
+            case 'W':{
+                //Invia al server i file specificati
+                char* tmp;
+                int i=0;
+                int dim=Count_Commas(optarg)+1;
+
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    free(new);
+                    error=1;
+                    goto exit;
+                }
+                
+                //Preparazione operazione
+                new->next=NULL;
+                new->op->op_code=4;
+                new->op->argc=dim;
+                new->op->args=(char**)malloc(dim*sizeof(char*)); 
+
+                char* file=strtok_r(optarg,",",&tmp);
+                while(file){
+                    new->op->args[i]=strndup(file,strlen(file));
+                    i++;
+                    file=strtok_r(NULL,",",&tmp);
+                }
+
+                list_push(command_list,new);
                 break;
-            case 'D':
+            }
+            case 'D':{
+                if(!w_or_W_to_do){
+                    fprintf(stderr,"E' stata specificata l'opzione -d senza aver prima specificato -w o -W!\n");
+                    error=1;
+                    goto exit;
+                }
+                backup_dir=optarg;
                 break;
-            case 'r':
+            }
+            case 'r':{
+            //Leggi dal server i file memorizzati
+                char* tmp;
+                int i=0;
+                int dim=Count_Commas(optarg)+1;
+
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    free(new);
+                    error=1;
+                    goto exit;
+                }
+                
+                //Preparazione operazione
+                new->next=NULL;
+                new->op->op_code=6;
+                new->op->argc=dim;
+                new->op->args=(char**)malloc(dim*sizeof(char*)); 
+
+                char* file=strtok_r(optarg,",",&tmp);
+                while(file){
+                    new->op->args[i]=strndup(file,strlen(file));
+                    i++;
+                    file=strtok_r(NULL,",",&tmp);
+                }
+
+                list_push(command_list,new);
                 break;
-            case 'R':
+            }
+            case 'R':{
+                char* hey=optarg;
+                printf("%s\n",hey);
                 break;
-            case 'd':
+            }
+            case ':':{
+                switch (optopt){
+                    case 'R':{
+                        printf("Argomento non presente, va bene così");
+                        break;
+                    }
+                    default:{
+                        fprintf(stderr, "option -%c is missing a required argument\n", optopt);
+                    }
+                }
                 break;
+            }
+            case 'd':{
+                read_dir=optarg;
+                break;
+            }
             case 't':
                 break;
             case 'l':
@@ -71,12 +242,14 @@ int main(int argc,char** argv){
             case 'p':
                 enable_printing=1;
                 break;
-            case '?':
-            printf("Necessario argomento\n");
+            case '?':{
+                printf("Necessario argomento\n");
                 break;
-            default:
-            printf("opzione sconosciuta\n");
+            }
+            default:{
+                printf("opzione sconosciuta\n");
                 break;
+            }
         }
     }
 
@@ -87,11 +260,9 @@ int main(int argc,char** argv){
     a.tv_sec=15;
 
     if(socketname==NULL){
-        printf("--->NULL socketname\n");
         if(openConnection(SOCKNAME,5000,a)==-1)
             return EXIT_FAILURE;
     }else{
-        printf("--->NOT NULL socketname\n");
         if(openConnection(socketname,5000,a)==-1)
             return EXIT_FAILURE;
     }
@@ -163,35 +334,12 @@ int main(int argc,char** argv){
     free(buffer);
     */
     closeConnection(socketname);
-    printf("Sock: %s\n",socketname);
+
     exit:
-        return EXIT_SUCCESS;
-}
-
-void Welcome(){
-    system("clear");
-    printf(" ______ _____ _      ______    _____ _______ ____  _____            _____ ______ \n");
-    printf("|  ____|_   _| |    |  ____|  / ____|__   __/ __ \\|  __ \\     /\\   / ____|  ____|\n");
-    printf("| |__    | | | |    | |__    | (___    | | | |  | | |__) |   /  \\ | |  __| |__ \n");
-    printf("|  __|   | | | |    |  __|    \\___ \\   | | | |  | |  _  /   / /\\ \\| | |_ |  __|\n");
-    printf("| |     _| |_| |____| |____   ____) |  | | | |__| | | \\ \\  / ____ \\ |__| | |____\n");
-    printf("|_|    |_____|______|______| |_____/   |_|  \\____/|_|  \\_\\/_/    \\_\\_____|______|\n");
-    printf("***Client File Storage ATTIVO***\n\n");
-}
-
-void PrintAcceptedOptions(){
-    printf("*****Opzioni ACCETTATE*****\n");
-    printf("\t '-f filename' \n\tspecifica il nome del socket AF_UNIX a cui connettersi\n\n");
-    printf("\t '-w dirname[,n=0]'\n\t invia al server i file nella cartella ‘dirname’ Se la directory ‘dirname’ contiene\n\t altre directory, queste vengono visitate ricorsivamente fino a quando non si leggono ‘n‘ \n\t file; se n=0 (o non è specificato) non c’è un limite superiore al numero di file da \n\t inviare al server (tuttavia non è detto che il server possa scriverli tutti).\n\n");
-    printf("\t '-W file1[,fil2]' \n\t lista di nomi di file da scrivere nel server separati da ','\n\n");
-    printf("\t '-D dirname' \n\t specifica la cartella in memoria secondaria dove vengono memorizzati i file che il server\n\t rimuove a seguito di capacity misses ottenuti a causa di scritture richieste attraverso le \n\t opzioni -W e -w. L'opzione -D deve essere usata congiuntamente all'opzione -w o -W \n\t altrimenti è generato un errore. Se l'opzione -D non viene specificata tutti \n\t i file che il server invia verso il client in seguito a capacity misses vengono persi. \n\n");
-    printf("\t '-r file1[,file2]' \n\t lista di nomi di file da leggere dal server separati da ','\n\n");
-    printf("\t '-R [n=0]' \n\t tale opzione permette di leggere n file qualsiasi attualmente memorizzati nel server. se \n\t n=0 vengono letti tutti i file presenti nel server.\n\n");
-    printf("\t '-d dirname' \n\t cartella in memoria secondaria dove scrivere i file letti dal server con l'opzione -r o -R.\n\t L'opzione -d va usata congiuntamente a '-r' o '-R' altrimenti viene generato un errore; Se\n\t vengono utilizzate le opzioni '-r' o '-R' senza specificare l'opzione '-d' i file \n\t letti non vengono memorizzati sul disco\n\n");
-    printf("\t '-t time' \n\t tempo in millisecondi che intercorre tra l'invio di due richieste successive al server. \n\t Se time=0 non vi è alcun ritardo tra l'invio di due richieste consecutive.\n\n");
-    printf("\t '-l file1[,file2]' \n\t lista di file su cui acquisire la mutua esclusione\n\n");
-    printf("\t '-u file1[,file2]' \n\t lista di fule su cui rilasciare la mutua esclusione\n\n");
-    printf("\t '-c file1[,file2]' \n\t lista di file da rimuovere nel server se presenti\n\n");
-    printf("\t '-p' \n\t abilita le stampe sullo standard output per ogni operazione\n");
-    printf("*****************\n");
+        list_destroy(command_list);
+        free(command_list);
+        if(!error)
+            return EXIT_SUCCESS;
+        else
+            return EXIT_FAILURE;
 }

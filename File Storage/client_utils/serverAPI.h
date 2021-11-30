@@ -3,6 +3,9 @@
 // Matricola 582418
 
 int fd_connection;
+char* backup_dir;
+char* read_dir;
+int w_or_W_to_do;
 
 int openConnection(const char* sockname, int msec, const struct timespec abstime);
 int closeConnection(const char* sockname);

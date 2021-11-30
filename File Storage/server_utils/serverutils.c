@@ -142,10 +142,6 @@ void DefaultConfiguration(){
         perror("Errore nell'inizializzazione del mutex");
         return;
     }
-    if(pthread_mutex_init(&mutex_storage,NULL)!=0){
-        perror("Errore nell'inizializzazione del mutex");
-        return;
-    }
     if(pthread_cond_init(&list_not_empty,NULL)!=0){
         perror("Errore nell'inizializzazione del mutex");
         return;
@@ -178,20 +174,16 @@ int LogFileAppend(char* format,...){
     return 0;
 }
 
-void Welcome(){
-    system("clear");
-    printf(" ______ _____ _      ______    _____ _______ ____  _____            _____ ______ \n");
-    printf("|  ____|_   _| |    |  ____|  / ____|__   __/ __ \\|  __ \\     /\\   / ____|  ____|\n");
-    printf("| |__    | | | |    | |__    | (___    | | | |  | | |__) |   /  \\ | |  __| |__ \n");
-    printf("|  __|   | | | |    |  __|    \\___ \\   | | | |  | |  _  /   / /\\ \\| | |_ |  __|\n");
-    printf("| |     _| |_| |____| |____   ____) |  | | | |__| | | \\ \\  / ____ \\ |__| | |____\n");
-    printf("|_|    |_____|______|______| |_____/   |_|  \\____/|_|  \\_\\/_/    \\_\\_____|______|\n");
-    printf("***Server File Storage ATTIVO***\n\n");
-}
-
 int InitializeStorage(){
     if((storage= hash_create(15,hash_pjw,string_compare))==NULL)
         return -1;
+    if(pthread_mutex_init(&mutex_storage,NULL)!=0){
+        perror("Errore nell'inizializzazione del mutex");
+        return -1;
+    }
+    nr_of_replacements=0;
+    max_data_size=-1;
+    max_data_num=-1;
     return 0;
 }
 
@@ -255,13 +247,6 @@ int FIFO_Replacement(int fd,int send_to_client,char* do_not_remove){
                             oldest_size=((int)((stored_file*)(curr_e->data))->size);
                         }
                     }
-                    /*
-                    if((((stored_file*)(curr_e->data))->creation_time)<oldest_time){
-                        //Nuova vittima individuata
-                        victim=curr_e->key;
-                        oldest_time=(((stored_file*)(curr_e->data))->creation_time);
-                        oldest_size=((int)((stored_file*)(curr_e->data))->size);
-                    }*/
                 }
             }
             curr_e=curr_e->next;
@@ -294,14 +279,14 @@ int FIFO_Replacement(int fd,int send_to_client,char* do_not_remove){
     }else{
         //Aggiorno data_size e nr_entries
         data_size-=oldest_size;
-        LOGFILEAPPEND("Vittima designata->%s Dimensione->%d Creata il->%s Correttamente rimossa dallo storage \n",victim_name,oldest_size,ctime(&(oldest_time.tv_sec)));
-        LOGFILEAPPEND("Occupazione dello storage dopo l'espulsione %d su %d bytes | Nr file memorizzati %d su %d\n",data_size,data_bound,storage->nentries,files_bound);
+        LOGFILEAPPEND("Politica di rimpiazzamento FIFO\nVittima designata->%s Dimensione->%d Creata il->%s Correttamente rimossa dallo storage \nOccupazione dello storage dopo l'espulsione %d su %d bytes | Nr file memorizzati %d su %d\n",victim_name,oldest_size,ctime(&(oldest_time.tv_sec)),data_size,data_bound,storage->nentries,files_bound);
         free(victim_name);
     }
     return 0;
 }
 
 int StartReplacementAlgorithm(int fd,int send_to_client,char* do_not_remove){
+    nr_of_replacements++;
     //Decidiamo quale politica di rimpiazzamento attuare
     int r=0;
     switch(replacement_policy){
@@ -340,9 +325,10 @@ int StorageUpdateSize(hash_t* ht,int s,int fd,int send_to_client,char* do_not_re
     }
     
     data_size+=s;
-
-
-    //LOGFILEAPPEND("Occupazione dello storage: %d bytes su %d\n",data_size,data_bound);
+    if(data_size>max_data_size)
+        max_data_size=data_size;
+        
+    LOGFILEAPPEND("Occupazione dello storage: %d bytes su %d\n",data_size,data_bound);
     
     printf("HO SPAZIO A SUFFICIENZA PER MEMORIZZARE, invio al client uno 0\n");
     int no_file_to_send=0,ctrl;
@@ -388,7 +374,13 @@ int IsUnlocked(char* pathname){
 /*Richiesta di apertura o creazione di un file.*/
 response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
     response r;
-    printf("[FILE STORAGE-OpenFile] Il path ricevuto è %s\n",pathname);
+    printf("[FILE STORAGE-OpenFile] Il path ricevuto e' %s\n",pathname);
+    if(!pathname){
+        r.code=-1;
+        sprintf(r.message,"Il path ricevuto e' nullo");
+        LOGFILEAPPEND("Errore nella OpenFile\n");
+        return r;
+    }
     
     //Acquisisco il mutex sullo storage
     pthread_mutex_lock(&mutex_storage);
@@ -398,6 +390,7 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         if(!CanWeStoreAnotherFile()){
             r.code=-1;
             sprintf(r.message,"Non e' possibile memorizzare ulteriori file nello storage (max numero file archiviati raggiunto)\n");
+            LOGFILEAPPEND("Non e' possibile memorizzare il file %s per raggiunta capacità massima dello storage (max numero file archiviati raggiunto)\n",pathname);
             pthread_mutex_unlock(&mutex_storage);
             return r; 
         }
@@ -409,6 +402,8 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
             perror("Errore nella creazione del nuovo file");
             r.code=-1;
             sprintf(r.message,"Errore nella creazione del nuovo file\n");
+            LOGFILEAPPEND("Errore nella OpenFile\n");
+            return r;
         }
 
         new_file->content=NULL; //Il contenuto è inizialmente nullo
@@ -431,47 +426,65 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         int insert=hash_insert(storage,id,new_file);
 
         switch(insert){
-            case 1: //null parameters
-                perror("[FILE STORAGE] Parametri errati");
+            case 1:{ //null parameters
+                fprintf(stderr,"Parametri errati");
                 if(new_file)
                     free(new_file);
                 if(id)
                     free(id);
                 r.code=-1;
                 sprintf(r.message,"Parametri openFileErrati");
+                LOGFILEAPPEND("Errore nella OpenFile\n");
                 break;
-            case 2: //key già presente
-                fprintf(stderr,"[FILE STORAGE] e' gia' presente nello storage\n");
-                free(new_file);
-                free(id);
+            }
+            case 2:{ //key già presente
+                fprintf(stderr,"%s e' gia' presente nello storage\n",pathname);
                 r.code=-1;
-                sprintf(r.message,"Il file %s è già presente nello storage!",id);
-                break;
-            case 3: //errore malloc nuovo nodo
-                perror("Malloc nuova entry hash table");
+                sprintf(r.message,"Il file %s è gia' presente nello storage!",id);
+                LOGFILEAPPEND("Il file %s e' gia' presente nello storage!\n",pathname);
                 free(new_file);
                 free(id);
+                break;
+            }
+            case 3:{ //errore malloc nuovo nodo
+                fprintf(stderr,"Malloc nuova entry hash table");
                 r.code=-1;
                 sprintf(r.message,"Errore nella malloc del nuovo file");
+                LOGFILEAPPEND("Errore nella OpenFile\n");
+                free(new_file);
+                free(id);
                 break;
-            case 0:
+            }
+            case 0:{
                 printf("[FILE STORAGE] %s inserito nello storage\n",id);
                 //pthread_mutex_lock(&new_file->mutex_file);
                 /*La openfile senza alcun flag Ocreate o Olock acquisisce il mutex del file
                 per poter leggere e scrivere, il setting di OLOCk fa in modo che nessun altro
                 client può leggere quel file anche se l'ho chiuso!*/
 
-                //TODO Questo dump non è in mutua esclusione,rimuovere
+                //Aggiornamento max_data_num
+                if((storage->nentries)>max_data_num){
+                    max_data_num=(storage->nentries);
+                }
+
                 hash_dump(stdout,storage,print_stored_file_info);
+
                 r.code=0;
-                sprintf(r.message,"OK Il file %s è stato inserito nello storage",id);
+                sprintf(r.message,"OK Il file %s e' stato inserito nello storage",id);
+                if(o_lock){
+                    LOGFILEAPPEND("Il file %s e' stato creato, inserito nello storage e bloccato dal client %d\n",pathname,fd_owner);
+                }else{
+                    LOGFILEAPPEND("Il file %s e' stato creato ed inserito nello storage dal client %d\n",pathname,fd_owner);
+                }
+            }
         }
     }else{ //Il file deve essere presente
         stored_file* find=(stored_file*)hash_find(storage,pathname);
         if(find==NULL){
-            perror("[FILE STORAGE] Il file non è presente nello storage\n");
+            fprintf(stderr,"Il file %s non e' presente nello storage\n",pathname);
             r.code=-1;
-            sprintf(r.message,"Il file %s NON è presente nello storage\n",pathname);
+            sprintf(r.message,"Il file %s non e' presente nello storage\n",pathname);
+            LOGFILEAPPEND("Il file %s non e' presente nello storage\n",pathname);
         }
     }
 
@@ -486,6 +499,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
     if(!pathname || !content){
         r.code=-1;
         sprintf(r.message,"Parametro nullo!");
+        LOGFILEAPPEND("Errore nella WriteFile\n");
         int no_file=0,ctrl;
         SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
@@ -499,15 +513,13 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
     if(!file){ //Il file non esiste
         r.code=-1;
         sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
-        //LOGFILEAPPEND("Il file %s non e' stato trovato",pathname);
-        //Libero la memoria
         free(pathname);
         free(content);
         pthread_mutex_unlock(&mutex_storage);
+        LOGFILEAPPEND("Il file %s non e' presente nello storage, non e' possibile scrivere il contenuto\n");
         int no_file=0,ctrl;
         SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
-
     }else{ //Il file esiste nello storage
 
         pthread_mutex_lock(&file->mutex_file);
@@ -516,32 +528,31 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
         int ctrl;
         SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
         if(!authorized){
+            pthread_mutex_unlock(&mutex_storage);
+            pthread_mutex_unlock(&file->mutex_file);
             r.code=-1;
             sprintf(r.message,"Non hai i permessi per scrivere il file %s",pathname);
             //Libero la memoria
             free(pathname);
             free(content);
-            pthread_mutex_unlock(&mutex_storage);
-            pthread_mutex_unlock(&file->mutex_file);
-            /*int no_file=0,ctrl;
-            SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");*/
+            LOGFILEAPPEND("Non si dispone dell'autorizzazione per scrivere il file %s\n",pathname);
             return r; 
         }
 
         //Verifichiamo se esista gia' un contenuto
         if(file->content!=NULL){
+            pthread_mutex_unlock(&mutex_storage);
+            pthread_mutex_unlock(&file->mutex_file);
             //Il contenuto del file e' gia' presente
             r.code=-1;
             sprintf(r.message,"Il file %s e' gia' stato scritto",pathname);
             //Libero la memoria
             free(pathname);
             free(content);
-            pthread_mutex_unlock(&mutex_storage);
-            pthread_mutex_unlock(&file->mutex_file);
+            LOGFILEAPPEND("Il file %s ha gia' un contenuto e non puo' essere scritto\n",pathname);
             int no_file=0,ctrl;
             SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
             return r;
-            //LOGFILEAPPEND("Il file %s e' gia' stato scritto",pathname);   
         }
     }
 
@@ -550,12 +561,13 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
         //Inserisco questo caso in modo che se un file ha una dimensione maggiore di quella
         //massima dello storage non si buttino via tutti i file per far spazio ad uno che
         //e' comunque troppo grande
+        pthread_mutex_unlock(&mutex_storage);
+        pthread_mutex_unlock(&file->mutex_file);
         r.code=-1;
         sprintf(r.message,"La dimensione del file eccede la dimensione massima dello storage!");
         free(pathname);
         free(content);
-        pthread_mutex_unlock(&mutex_storage);
-        pthread_mutex_unlock(&file->mutex_file);
+        LOGFILEAPPEND("Non vi e' spazio a sufficienza nello storage per memorizzare il contenuto del file %s\n",pathname);
         int no_file=0,ctrl;
         SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
@@ -579,7 +591,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
 
     r.code=0;
     sprintf(r.message,"Il contenuto del file %s e' stato scritto sullo storage",pathname);
-    //LOGFILEAPPEND("Sono stati scritti %d bytes nel file con pathname %s\n",size,pathname);
+    LOGFILEAPPEND("Sono stati scritti %d bytes nel file con pathname %s\n",size,pathname);
     hash_dump(stdout,storage,print_stored_file_info);
     //Ho terminato le operazioni sullo storage, rilascio il lock
     pthread_mutex_unlock(&mutex_storage);
@@ -594,6 +606,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         r.code=-1;
         sprintf(r.message,"Parametro nullo!");
         printf("PARAMETRO NULLO!\n");
+        LOGFILEAPPEND("Errore nella AppendToFile\n");
         int no_file=0,ctrl;
         //no autorizzazione
         SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
@@ -609,7 +622,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         r.code=-1;
         sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
         printf("Il file %s non e' stato trovato nello storage!\n",pathname);
-        //LOGFILEAPPEND("Il file %s non e' stato trovato",pathname);
+        LOGFILEAPPEND("Il file %s non e' stato trovato nello storage\n",pathname);
         //Libero la memoria
         free(pathname);
         free(content_to_append);
@@ -627,30 +640,30 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
         printf("Ho inviato il bit di autorizzazione %d!\n",authorized);
         if(!authorized){
+            pthread_mutex_unlock(&mutex_storage);
+            pthread_mutex_unlock(&file->mutex_file);
             r.code=-1;
             sprintf(r.message,"Non hai i permessi per scrivere il file %s",pathname);
             printf("No autorizzazione\n");
+            LOGFILEAPPEND("Non si dispone dell'autorizzazione per aggiungere contenuto al file %s\n",pathname);
             //Libero la memoria
             free(pathname);
             free(content_to_append);
-            pthread_mutex_unlock(&mutex_storage);
-            pthread_mutex_unlock(&file->mutex_file);
-            /*int no_file=0,ctrl;
-            SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");*/
             return r; 
         }
 
         //Verifichiamo se esiste gia' un contenuto
         if(file->content==NULL){
+            pthread_mutex_unlock(&mutex_storage);
+            pthread_mutex_unlock(&file->mutex_file);
             //Il contenuto e' nullo
             r.code=-1;
             sprintf(r.message,"Il file %s non ha un contenuto",pathname);
             printf("Il file %s non ha un contenuto\n",pathname);
+            LOGFILEAPPEND("Il file %s non ha contenuto, non e' possibile appendere nuovo contenuto\n",pathname);
             //Libero la memoria
             free(pathname);
             free(content_to_append);
-            pthread_mutex_unlock(&mutex_storage);
-            pthread_mutex_unlock(&file->mutex_file);
             int no_file=0,ctrl;
             SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
             return r; 
@@ -663,13 +676,14 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         //Inserisco questo caso in modo che se un file ha una dimensione maggiore di quella
         //massima dello storage non si buttino via tutti i file per far spazio ad uno che
         //e' comunque troppo grande
+        pthread_mutex_unlock(&mutex_storage);
+        pthread_mutex_unlock(&file->mutex_file);
         r.code=-1;
         sprintf(r.message,"La dimensione del file eccede la dimensione massima dello storage!");
         printf("La dimensione dell'append supera la dimensione massima dello storage\n");
+        LOGFILEAPPEND("Non vi e' spazio a sufficienza nello storage per memorizzare il contenuto del file %s\n",pathname);
         free(pathname);
         free(content_to_append);
-        pthread_mutex_unlock(&mutex_storage);
-        pthread_mutex_unlock(&file->mutex_file);
         int no_file=0,ctrl;
         SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
@@ -688,13 +702,14 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
 
     char* new_content=(char*)realloc(file->content,newdim);
     if(!new_content){ //Errore nella realloc
+        pthread_mutex_unlock(&mutex_storage);
+        pthread_mutex_unlock(&file->mutex_file);
         r.code=-1;
         sprintf(r.message,"Errore nella realloc");
         printf("Errore nella realloc\n");
         free(pathname);
         free(content_to_append);
-        pthread_mutex_unlock(&mutex_storage);
-        pthread_mutex_unlock(&file->mutex_file);
+        LOGFILEAPPEND("Errore nella AppendToFile\n");
         int no_file=0,ctrl;
         SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
@@ -706,8 +721,10 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
 
     r.code=0;
     sprintf(r.message,"Il contenuto del file %s e' stato aggiornato dopo la append",pathname);
-    //LOGFILEAPPEND("Sono stati scritti %d bytes nel file con pathname %s\n",size,pathname);
+    LOGFILEAPPEND("Sono stati appesi %d bytes nel file con pathname %s\n",size,pathname);
+    
     hash_dump(stdout,storage,print_stored_file_info);
+
     //Ho terminato le operazioni sullo storage, rilascio il lock
     pthread_mutex_unlock(&mutex_storage);
     free(pathname);
@@ -726,6 +743,7 @@ response ReadFile(char* pathname,stored_file** found){
         fprintf(stderr,"Il file %s non e' stato trovato nello storage\n",pathname);
         r.code=-1;
         sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
+        LOGFILEAPPEND("Il file %s non e' stato trovato nello storage, non e' possibile leggerlo\n",pathname);
     }else{ 
         //Il file e' stato trovato, verifichiamo che il contenuto non sia vuoto
         pthread_mutex_lock(&(*found)->mutex_file);
@@ -733,10 +751,12 @@ response ReadFile(char* pathname,stored_file** found){
             //Il file e' vuoto!
             r.code=-1;
             sprintf(r.message,"Il contenuto del file %s e' nullo",pathname);
+            LOGFILEAPPEND("Il file %s e' vuoto, non e' possibile leggerlo\n",pathname);
         }else{
             //Il file non e' vuoto
             r.code=0;
             sprintf(r.message,"Il file %s e' stato trovato nello storage, ecco il contenuto",pathname);
+            LOGFILEAPPEND("Il file %s e' stato letto con successo\n");
         }
     }
     pthread_mutex_unlock(&mutex_storage);
@@ -757,6 +777,7 @@ response UnlockFile(char* pathname,int fd){
         fprintf(stderr,"Il file %s non e' stato trovato nello storage\n",pathname);
         r.code=-1;
         sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
+        LOGFILEAPPEND("Il file %s non e' stato trovato nello storage, non lo si puo' sbloccare\n");
     }else{
         pthread_mutex_lock(&found->mutex_file);
         //Il file e' stato trovato
@@ -766,10 +787,12 @@ response UnlockFile(char* pathname,int fd){
             pthread_cond_signal(&found->unlocked); //notifico i client che aspettano
             r.code=0;
             sprintf(r.message,"Il file %s e' stato correttamente sbloccato",pathname);
+            LOGFILEAPPEND("Il file %s e' stato correttamente sbloccato\n",pathname);
         }else{
             //Non sono il proprietario del file
             r.code=-1;
             sprintf(r.message,"Non puoi sbloccare il file %s",pathname);
+            LOGFILEAPPEND("Non si dispone dell'autorizzazione per sbloccare il file %s\n",pathname)
         }
         pthread_mutex_unlock(&found->mutex_file);
     }
@@ -790,6 +813,7 @@ response LockFile(char* pathname,int fd){
         fprintf(stderr,"Il file %s non e' stato trovato nello storage\n",pathname);
         r.code=-1;
         sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
+        LOGFILEAPPEND("Il file %s non e' stato trovato nello storage, non lo si puo' bloccare\n",pathname);
         return r;
     }else{
         //Il file e' stato trovato
@@ -803,13 +827,14 @@ response LockFile(char* pathname,int fd){
     }
     r.code=0;
     sprintf(r.message,"Il file %s e' ora bloccato dal fd %d",pathname,fd);
+    LOGFILEAPPEND("Il file %s e' stato bloccato con successo dal client %d\n",pathname,fd);
     return r;
 }
 
 int UnlockAllMyFiles(int fd){
     entry_t *bucket, *curr;
     int i;
-    if(!storage)
+    if(!storage ||fd<0)
         return -1;
     pthread_mutex_lock(&mutex_storage);
     for(i=0; i<storage->nbuckets; i++) {
@@ -825,6 +850,7 @@ int UnlockAllMyFiles(int fd){
                     pthread_mutex_unlock(&sf->mutex_file);
                     pthread_cond_signal(&sf->unlocked); //notifico i client che aspettano
                     printf("Ho sbloccato il file %s che era stato bloccato dal fd %d\n",(char*)curr->key,fd);
+                    LOGFILEAPPEND("Il file %s che era stato bloccato dal fd %d e' stato sbloccato\n",(char*)curr->key,fd);
                 }else
                     pthread_mutex_unlock(&sf->mutex_file);
             }
@@ -837,14 +863,22 @@ int UnlockAllMyFiles(int fd){
 
 response RemoveFile(char* pathname,int fd){
     response r;
+    if(!pathname){
+        r.code=-1;
+        sprintf(r.message,"Errore parametro nullo");
+        LOGFILEAPPEND("Errore RemoveFile\n");
+        return r;
+    }
+
     stored_file* found; 
     //Verifichiamo se il file e' gia' presente nello storage
     pthread_mutex_lock(&mutex_storage);
     found=(stored_file*)hash_find(storage,pathname);
     if(!found){
+        pthread_mutex_unlock(&mutex_storage);
         r.code=-1;
         sprintf(r.message,"Il file %s non e' presente nello storage",pathname);
-        pthread_mutex_unlock(&mutex_storage);
+        LOGFILEAPPEND("Il file %s non e' stato trovato nello storage, non e' possibile eliminarlo\n",pathname);
         return r;
     }
 
@@ -853,15 +887,17 @@ response RemoveFile(char* pathname,int fd){
 
     //Verifica dei diritti
     if(found->fd_holder==-1){
-        r.code=-1;
-        sprintf(r.message,"Non puoi cancellare un file pubblico");
         pthread_mutex_unlock(&found->mutex_file);
         pthread_mutex_unlock(&mutex_storage);
+        r.code=-1;
+        sprintf(r.message,"Non puoi cancellare un file pubblico");
+        LOGFILEAPPEND("Non e' possibile cancellare il file %s in quanto e' pubblico\n",pathname);
         return r;
     }else{
         if (found->fd_holder!=fd){
             r.code=-1;
             sprintf(r.message,"Non puoi cancellare un file bloccato da un altro client");
+            LOGFILEAPPEND("Non e' possibile cancellare il file %s in quanto e' bloccato dal client %d\n",found->fd_holder);
             pthread_mutex_unlock(&found->mutex_file);
             pthread_mutex_unlock(&mutex_storage);
             return r;
@@ -885,13 +921,17 @@ response RemoveFile(char* pathname,int fd){
     if(hash_delete(storage,pathname,free,free_stored_file)==-1){
         r.code=-1;
         sprintf(r.message,"Errore nella procedura di eliminazione del file dallo storage");
+        LOGFILEAPPEND("Errore RemoveFile\n");
+        return r;
     }
+
     //Aggiorno la dimensione dello storage
     data_size-=dim;
     pthread_mutex_unlock(&mutex_storage);
 
     r.code=0;
     sprintf(r.message,"Il file %s e' stato correttamente rimosso",pathname);
+    LOGFILEAPPEND("Il file %s e' stato correttamente rimosso dallo storage\n");
     return r;
 }
 
@@ -1016,12 +1056,6 @@ int ExecuteRequest(int fun,int fd){
             SYSCALL(ctrl,write(fd,r.message,responsedim),"Errore nella 'write' della risposta");
             printf("Ho inviato %d bytes di stringa: %s\n",ctrl,r.message);
             return r.code;
-
-            //int responsedim=strlen(r.message);
-            //Invio prima la dimensione della risposta e poi la risposta
-            //SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della dimensione della risposta");
-            //SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della risposta");
-            //return r.code;
         }
         case (7):{ //Operazione AppendToFile
             printf("\n\n*****Operazione APPEND TO FILE Fd: %d*****\n",fd);
@@ -1150,6 +1184,7 @@ int ExecuteRequest(int fun,int fd){
             response r;
             r.code=-1;
             sprintf(r.message,"Comando %d sconosciuto!!!",fun);
+            LOGFILEAPPEND("Ho ricevuto il comando sconosciuto %d",fun);
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
             SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST] Errore nella 'write' della dimensione della risposta");

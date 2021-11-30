@@ -56,7 +56,6 @@ int string_compare(void* a, void* b);
 
 /* A linked list of integer */
 typedef struct Node{ 
-    // Any data type can be stored in this node 
     int data; 
     struct Node *next; 
 }Node; 

@@ -42,7 +42,19 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
         if((connect(fd_connection,(struct sockaddr*)&sa,sizeof(sa)))==-1){
             perror("Errore nella connect");
         }else{
-            printf("Connesso correttamente!\n");
+            #if 0
+            //Ricezione di un riscontro
+            int ack,ctrl;
+            SYSCALL(ctrl,read(fd_connection,&ack,sizeof(int)),"Errore nella 'read' del bit di ack");
+            if(ack){
+                printf("Connessione con FILE STORAGE correttamente stabilita!\n");
+                return EXIT_SUCCESS;
+            }else{
+                printf("Connessione rifiutata dal server!\n");
+                return -1;
+            }
+            #endif
+            printf("Connessione con FILE STORAGE correttamente stabilita!\n");
             return EXIT_SUCCESS;
         }    
         int timetosleep=msec*1000;
@@ -111,12 +123,13 @@ int openFile(char* pathname,int o_create,int o_lock){
 }
 
 int readFile(char* pathname,void** buf,size_t* size){
-    /*
+    /* TESTING
     if(!pathname || !buf || !size){
         errno=EINVAL;
         perror("Errore parametri nulli");
         return -1;
     }*/
+
     //TODO Mettere const char...
     int op=4,dim=strlen(pathname)+1,ctrl;
     //Invio il codice comando
@@ -151,9 +164,58 @@ int readFile(char* pathname,void** buf,size_t* size){
         }
         SYSCALL(ctrl,read(fd_connection,content,dim),"Errore nella 'read' del contenuto");
         printf("Contenuto di %s\n %s\n",pathname,content);
+
+        //Se e' stata specificata una cartella di memorizzazione scrivo il file
+        if(read_dir){
+            //Verifico che dirname sia effettivamente una cartella
+            DIR* destination=opendir(read_dir);
+            if(!destination){
+                if(errno=ENOENT){ //Se la cartella non esiste la creo
+                    mkdir(read_dir,0777);
+                    destination=opendir(read_dir);
+                    printf("Cartella per i file letti non trovata, la creo\n");
+                    if(!destination){
+                        perror("Errore nell'apertura della cartella di destinazione dei file letti, i file letti non saranno memorizzati");
+                    }
+                }
+            }
+            //Vado nella cartella destinazione
+            chdir(read_dir);
+            char cwd[128];
+            getcwd(cwd,sizeof(cwd));
+            printf("Sono nella cartella %s\n",cwd);
+
+            //Scrivo il nuovo file
+            FILE* read_file=fopen(pathname,"w");
+            if(!read_file){
+                free(response);
+                free(content);
+                return -1;
+            }
+            
+            printf("Ho aperto il file!\n");
+            printf("Ho scritto %d bytes nel file\n",(int)fwrite(content,sizeof(char),ctrl,read_file));
+            if(fclose(read_file)==-1){
+                perror("Errore nella chiusura del file");
+                free(response);
+                free(content);
+                return -1;
+            }
+            if(closedir(destination)==-1){
+                perror("Errore nella chiusura della cartella");
+                free(response);
+                free(content);
+                return -1;
+            }
+            chdir("..");
+            memset(cwd,'\0',128);
+            getcwd(cwd,sizeof(cwd));
+            printf("Sono nella cartella %s\n",cwd);
+        }
+
         free(content);
         free(response);
-        return 0;
+        return EXIT_SUCCESS;
     }
     free(response);
     return -1;
@@ -236,8 +298,8 @@ int writeFile(char* pathname,char* dirname){
                 destination=opendir(dirname);
                 printf("Cartella per i file espulsi non trovata, la creo\n");
                 if(!destination){
-                    perror("Errore nell'apertura della cartella di destinazione dei file espulsi");
-                    return -1;
+                    fprintf(stderr,"Errore nell'apertura della cartella di destinazione dei file espulsi, i file ricevuti saranno eliminati");
+                    
                 }
             }
         }
@@ -284,10 +346,9 @@ int writeFile(char* pathname,char* dirname){
                     free(buffer_content);
                     return -1;
                 }
-                printf("Ho aperto il file!");
+                printf("Ho aperto il file!\n");
                 free(buffer_name);
-                fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file);
-                printf("Ho scritto il file\n");
+                printf("Ho scritto %d bytes nel file\n",(int)fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file));
                 free(buffer_content);
                 if(fclose(expelled_file)==-1){
                     perror("Errore nella chiusura del file");

@@ -29,6 +29,8 @@ char socket_name[128]; //nome del socket AF_UNIX
 char logfilename[128]; //nome del file di log
 int max_connections; //numero massimo di connessioni contemporanee supportate
 
+int active_connections;
+
 /*-----File-----*/
 typedef struct stored_file{
     char* content; //contenuto
@@ -68,12 +70,15 @@ typedef struct response{
 hash_table_t* storage;
 pthread_mutex_t mutex_storage;
 int data_size;
+int max_data_size;
+int max_data_num;
+int nr_of_replacements;
 int InitializeStorage();
 int DestroyStorage();
 
 /*-----Thread Pool-----*/
 pthread_t* threadpool;
-int terminated;
+int terminated_workers;
 pthread_mutex_t term_var;
 IntLinkedList queue; //FORSE VA INIZIALIZZATA A NULL
 
