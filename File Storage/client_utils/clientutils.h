@@ -13,5 +13,7 @@ typedef struct Node{
     struct Node *next; 
 }operation_node; 
 
-int list_push(operation_node* head,operation_node* to_insert);
+int list_insert_end(operation_node** head,operation_node* to_insert);
+int list_insert_start(operation_node** head,operation_node* to_insert);
+void print_command_list(operation_node* head);
 void list_destroy(operation_node* head);

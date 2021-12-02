@@ -34,7 +34,6 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
     int err;
     struct timespec current,start;
     SYSCALL(err,clock_gettime(CLOCK_REALTIME,&start),"Errore durante la 'clock_gettime'");
-    printf("Inizio %ld\n",(long)start.tv_sec);
 
     //Connettiamo il socket
     while(1){

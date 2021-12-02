@@ -32,26 +32,40 @@ void PrintAcceptedOptions(){
 }
 
 int Count_Commas(char* str){
+    printf("Optarg %s\n",str);
     int c=0;
     for(int i=0;i<strlen(str);i++){
-        if(str[i]==',')
+        printf("Analizzo %c\n",str[i]);
+        if(str[i]==','){
+            printf("Trovata una virgola\n");
             c++;
+        }
     }
     return c;
 }
 
-int list_push(operation_node* head,operation_node* to_insert){
+int list_insert_end(operation_node** head,operation_node* to_insert){
     if(!to_insert)    
         return -1;
-    if(head==NULL){
-        head=to_insert;
+    if(*head==NULL){
+        printf("Ho inserito fondo sulla lista vuota\n");
+        *head=to_insert;
         return EXIT_SUCCESS;
     }
-    operation_node* curr=head;
+    operation_node* curr=*head;
     while(curr->next!=NULL)
         curr=curr->next;
     to_insert->next=NULL;
     curr->next=to_insert;
+    printf("Ho inserito in fondo\n");
+    return EXIT_SUCCESS;
+}
+
+int list_insert_start(operation_node** head,operation_node* to_insert){
+    if(!to_insert)    
+        return -1;
+    to_insert->next=*head;
+    *head=to_insert;
     return EXIT_SUCCESS;
 }
 
@@ -60,12 +74,32 @@ void list_destroy(operation_node* head){
     operation_node* tmp;
     while(curr != NULL){
         tmp=curr->next;
-        for(int i=0;i<curr->op->argc;i++)
+        for(int i=0;i<curr->op->argc;i++){
+            printf("\telimino %s\n",curr->op->args[i]);
             free(curr->op->args[i]);
+        }
         //le stringhe sono allocate sullo stack
-        free(curr->op->args);
+        if(curr->op->args)
+            free(curr->op->args);
         free(curr->op);
         free(curr);
         curr=tmp;
+    }
+}
+
+void print_command_list(operation_node* head){
+    printf("---Operation List---\n");
+    operation_node* curr=head;
+    int i=0;
+    while (curr){
+        printf("Comando nr %d\n Operazione %d Argc %d\nArgomenti: ",i++,curr->op->op_code,curr->op->argc);
+        int w;
+        for(w=0;w<curr->op->argc;w++){
+            printf("%s ",curr->op->args[w]);
+        }
+        if(w==0)
+            printf(" (None)\n");
+        printf("\n");
+        curr=curr->next;
     }
 }

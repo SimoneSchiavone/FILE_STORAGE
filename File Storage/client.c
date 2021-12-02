@@ -24,10 +24,8 @@ al server multithreaded.*/
 #include "client_utils/clientutils.h"
 
 #define SOCKNAME "./SocketFileStorage"
-
-#define BUFFDIM 256
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
-#define CALLOC(r) r=(char*) calloc(BUFFDIM,sizeof(char)); if(r==NULL){ perror("calloc"); return EXIT_FAILURE;}
+#define IF_PRINT_ENABLED(print) if(print_options){print}
 
 /*
 static void signal_handler(int signum){
@@ -43,11 +41,12 @@ static void signal_handler(int signum){
     }
 }*/
 int error;
+int delay;
+int print_options;
 
 int main(int argc,char** argv){
-    error=0;
+    error=0,delay=0,w_or_W_to_do=0,print_options=0;
     backup_dir=NULL;
-    int w_or_W_to_do=0;
 
     int ctrl;
     struct sigaction s;
@@ -70,20 +69,49 @@ int main(int argc,char** argv){
     //Parsing degli argomenti da linea di comando
     int opt;
     while((opt=getopt(argc,argv,"hf:w:W:D:r:R:d:t:l:u:c:p"))!=-1){
-        printf("ANALIZZO: %c\n",opt);
         switch (opt){
-            case 'h':{
-                //Stampa la lista di tutte le opzioni accettate dal client e termina immediatamente
+            case 'h':{ //Stampa opzioni accettate e termina
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    free(new);
+                    error=1;
+                    goto exit;
+                }
+                //Preparazione operazione
+                new->op->op_code=0;
+                new->op->argc=0;
+                new->op->args=NULL;
+                /*
                 PrintAcceptedOptions();
-                goto exit;
-            }
-            case 'f':{
-                socketname=optarg;
+                goto exit;*/
+                if(list_insert_start(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    goto exit;
+                }
                 break;
             }
-            case 'w':{
-                //Invia al server i file della cartella dirname, se n=0 o non specificato non c'e' un
-                //limite al nr di file altrimenti invia n file visitando ricorsivamente la cartella
+            case 'f':{ //Imposta nome del socket AF_UNIX
+                if(socketname==NULL)
+                    socketname=optarg;
+                else{
+                    fprintf(stderr,"Hai gia' impostato il nome del socket (%s)\n",socketname);
+                    error=1;
+                    goto exit;
+                }
+                break;
+            }
+            case 'w':{ //Invia al server 'n' file della cartella dirname
                 char* tmp;
                 int c=1;
                 char* directory=strtok_r(optarg,",",&tmp);
@@ -113,20 +141,36 @@ int main(int argc,char** argv){
                 new->op=(pending_operation*)malloc(sizeof(pending_operation));
                 if(!new->op){
                     perror("Malloc new operation");
+                    free(new->op);
                     error=1;
                     goto exit;
                 }
                 new->next=NULL;
                 //Preparazione operazione
                 new->op->op_code=3;
-                new->op->argc=c;
-                new->op->args=(char**)malloc(c*sizeof(char*)); //una o due stringhe
+                new->op->argc=1;
+                new->op->args=(char**)malloc(sizeof(char*)); //una o due stringhe
+                new->op->args[0]=strndup(number,strlen(number));
+                if(!new->op->args){
+                    fprintf(stderr,"Errore nella malloc degli argomenti\n");
+                    error=-1;
+                    free(new);
+                    free(new->op);
+                    goto exit;
+                }
 
-                list_push(command_list,new);
+                
+                w_or_W_to_do=1;
+                if(list_insert_end(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    free(new->op->args);
+                    goto exit;
+                }
                 break;
             }
-            case 'W':{
-                //Invia al server i file specificati
+            case 'W':{ //Invia al server i file specificati
                 char* tmp;
                 int i=0;
                 int dim=Count_Commas(optarg)+1;
@@ -152,6 +196,13 @@ int main(int argc,char** argv){
                 new->op->op_code=4;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
+                if(!new->op->args){
+                    fprintf(stderr,"Errore nella malloc degli argomenti\n");
+                    free(new);
+                    free(new->op);
+                    error=-1;
+                    goto exit;
+                }
 
                 char* file=strtok_r(optarg,",",&tmp);
                 while(file){
@@ -160,10 +211,18 @@ int main(int argc,char** argv){
                     file=strtok_r(NULL,",",&tmp);
                 }
 
-                list_push(command_list,new);
+                w_or_W_to_do=1;
+
+                if(list_insert_end(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    free(new->op->args);
+                    goto exit;
+                }
                 break;
             }
-            case 'D':{
+            case 'D':{ //Specifica la cartella dove memorizzare i file espulsi per capacity misses
                 if(!w_or_W_to_do){
                     fprintf(stderr,"E' stata specificata l'opzione -d senza aver prima specificato -w o -W!\n");
                     error=1;
@@ -172,8 +231,7 @@ int main(int argc,char** argv){
                 backup_dir=optarg;
                 break;
             }
-            case 'r':{
-            //Leggi dal server i file memorizzati
+            case 'r':{ //Leggi dal server i file specificati
                 char* tmp;
                 int i=0;
                 int dim=Count_Commas(optarg)+1;
@@ -199,6 +257,13 @@ int main(int argc,char** argv){
                 new->op->op_code=6;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
+                if(!new->op->args){
+                    fprintf(stderr,"Errore nella malloc degli argomenti\n");
+                    free(new);
+                    free(new->op);
+                    error=-1;
+                    goto exit;
+                }
 
                 char* file=strtok_r(optarg,",",&tmp);
                 while(file){
@@ -207,41 +272,195 @@ int main(int argc,char** argv){
                     file=strtok_r(NULL,",",&tmp);
                 }
 
-                list_push(command_list,new);
-                break;
-            }
-            case 'R':{
-                char* hey=optarg;
-                printf("%s\n",hey);
-                break;
-            }
-            case ':':{
-                switch (optopt){
-                    case 'R':{
-                        printf("Argomento non presente, va bene così");
-                        break;
-                    }
-                    default:{
-                        fprintf(stderr, "option -%c is missing a required argument\n", optopt);
-                    }
+                if(list_insert_end(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    free(new->op->args);
+                    goto exit;
                 }
                 break;
             }
-            case 'd':{
+            case 'R':{ //Leggi 'n' file qualsiasi dal server, se n non e' specificato leggi tutti i file
+                printf("Caso R con argomento\n");
+                printf("%s\n",optarg);
+                int n;
+                sscanf(optarg, "%d", &n);
+                    printf("%d\n",n);
+                                        
+                break;
+            }
+            case 'd':{ //Specifica la cartella dove memorizzare i file letti dallo storage
                 read_dir=optarg;
                 break;
             }
-            case 't':
+            case 't':{ //Tempo che intercorre tra l'invio di due richieste successive
+                delay=atoi(optarg);
                 break;
-            case 'l':
+            }
+            case 'l':{
+                char* tmp;
+                int i=0;
+                int dim=Count_Commas(optarg)+1;
+
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    free(new);
+                    error=1;
+                    goto exit;
+                }
+                
+                //Preparazione operazione
+                new->next=NULL;
+                new->op->op_code=4;
+                new->op->argc=dim;
+                new->op->args=(char**)malloc(dim*sizeof(char*)); 
+                if(!new->op->args){
+                    fprintf(stderr,"Errore nella malloc degli argomenti\n");
+                    free(new);
+                    free(new->op);
+                    error=-1;
+                    goto exit;
+                }
+
+                char* file=strtok_r(optarg,",",&tmp);
+                while(file){
+                    new->op->args[i]=strndup(file,strlen(file));
+                    i++;
+                    file=strtok_r(NULL,",",&tmp);
+                }
+
+                if(list_insert_end(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    free(new->op->args);
+                    goto exit;
+                }
                 break;
-            case 'u':
+            }
+            case 'u':{
+                char* tmp;
+                int i=0;
+                int dim=Count_Commas(optarg)+1;
+
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    free(new);
+                    error=1;
+                    goto exit;
+                }
+                
+                //Preparazione operazione
+                new->next=NULL;
+                new->op->op_code=4;
+                new->op->argc=dim;
+                new->op->args=(char**)malloc(dim*sizeof(char*)); 
+                if(!new->op->args){
+                    fprintf(stderr,"Errore nella malloc degli argomenti\n");
+                    free(new);
+                    free(new->op);
+                    error=-1;
+                    goto exit;
+                }
+
+                char* file=strtok_r(optarg,",",&tmp);
+                while(file){
+                    new->op->args[i]=strndup(file,strlen(file));
+                    i++;
+                    file=strtok_r(NULL,",",&tmp);
+                }
+
+                if(list_insert_end(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    free(new->op->args);
+                    goto exit;
+                }
                 break;
-            case 'c':
+            }
+            case 'c':{
+                char* tmp;
+                int i=0;
+                int dim=Count_Commas(optarg)+1;
+
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    free(new);
+                    error=1;
+                    goto exit;
+                }
+                
+                //Preparazione operazione
+                new->next=NULL;
+                new->op->op_code=4;
+                new->op->argc=dim;
+                new->op->args=(char**)malloc(dim*sizeof(char*)); 
+                if(!new->op->args){
+                    fprintf(stderr,"Errore nella malloc degli argomenti\n");
+                    free(new);
+                    free(new->op);
+                    error=-1;
+                    goto exit;
+                }
+
+                char* file=strtok_r(optarg,",",&tmp);
+                while(file){
+                    new->op->args[i]=strndup(file,strlen(file));
+                    i++;
+                    file=strtok_r(NULL,",",&tmp);
+                }
+
+                if(list_insert_end(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    free(new->op->args);
+                    goto exit;
+                }
                 break;
-            case 'p':
+            }
+            case 'p':{
+                if(enable_printing==1){
+                    fprintf(stderr,"-p non puo' essere ripetuto piu' volte\n");
+                    error=1;
+                    goto exit;
+                }
                 enable_printing=1;
                 break;
+            }
+            case ':':{
+                if(optopt=='R')
+                    printf("Caso R senza argomento\n");
+            }
             case '?':{
                 printf("Necessario argomento\n");
                 break;
@@ -253,6 +472,8 @@ int main(int argc,char** argv){
         }
     }
 
+    print_command_list(command_list);
+
     //DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
     printf("Enableprinting:%d\n",enable_printing);
      
@@ -261,13 +482,11 @@ int main(int argc,char** argv){
 
     if(socketname==NULL){
         if(openConnection(SOCKNAME,5000,a)==-1)
-            return EXIT_FAILURE;
+            goto exit;
     }else{
         if(openConnection(socketname,5000,a)==-1)
-            return EXIT_FAILURE;
+            goto exit;
     }
-    //char name[]="/Topolino\0";
-    //printf("Dimensione: %ld Stringa: %s\n",strlen(name),name);
 
     printf("\n\n*****OPEN FILE TOPOLINO*****\n");
     openFile("topolino.txt\0",1,1);
@@ -313,31 +532,10 @@ int main(int argc,char** argv){
     printf("\n\n*****REMOVE FILE TOPOLINO*****\n");
     removeFile("topolino.txt\0");
 
-    /*
-    sleep(5);
-    printf("\n\n*****OPEN FILE MINNIE*****\n");
-    openFile("minnie.txt\0",1,1);
-    printf("\n\n*****WRITE FILE MINNIE*****\n");
-    writeFile("minnie.txt\0","Espulsi");
-    readFile("minnie.txt\0",NULL,NULL);
-    */
-    /*
-    char* buffer=(char*)calloc(BUFFDIM,sizeof(char));
-    int n;
-    SYSCALL(n,write(fd_connection,"Ciao",4),"Errore nella write");
-    SYSCALL(n,read(fd_connection,buffer,BUFFDIM),"Errore nella read");
-    printf("Ho ricevuto %s\n",buffer);
-    memset(buffer,'\0',BUFFDIM);
-    SYSCALL(n,write(fd_connection,"stop",4),"Errore nella write");
-    SYSCALL(n,read(fd_connection,buffer,BUFFDIM),"Errore nella read");
-    printf("Ho ricevuto %s\n",buffer);
-    free(buffer);
-    */
     closeConnection(socketname);
 
     exit:
         list_destroy(command_list);
-        free(command_list);
         if(!error)
             return EXIT_SUCCESS;
         else

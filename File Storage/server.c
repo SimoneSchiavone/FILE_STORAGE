@@ -255,11 +255,11 @@ void* WorkerFun(void* p){
     int op_return;
     while(condition){
         //Estraiamo un fd dalla coda
-        printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
+        //printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
         int current_fd=list_pop(&queue);
-        printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
+        //printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
         if(current_fd==-1){ //Se estraggo -1 dalla coda devo terminare forzatamente
-            printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
+            //printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
             condition=0;
             pthread_cond_signal(&list_not_empty);
         }else{
@@ -291,10 +291,10 @@ void* WorkerFun(void* p){
             SYSCALL(ctrl,write(pipe_fd,&w,4),"Errore nella 'write' del flag sulla pipe");
         }
     }
-    printf("[WORKER %ld] Sono terminato\n",pthread_self());
+    //printf("[WORKER %ld] Sono terminato\n",pthread_self());
     pthread_mutex_lock(&term_var);
     terminated_workers++;
-    printf("Ho variato terminated che ora e' %d\n",terminated_workers);
+    //printf("Ho variato terminated che ora e' %d\n",terminated_workers);
     pthread_mutex_unlock(&term_var);
     fflush(stdout);
     //pthread_exit((void*)0);

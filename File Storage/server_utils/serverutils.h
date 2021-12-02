@@ -39,9 +39,11 @@ typedef struct stored_file{
 
     int fd_holder; //fd della connessione del proprietario del file; Se -1 il file e' sbloccato
     pthread_mutex_t mutex_file; //lock del file
-    pthread_cond_t unlocked; //variabile di condizione per l'attesa dello sblocco del file
+    pthread_cond_t is_unlocked; //variabile di condizione per l'attesa dello sblocco del file
 
-    //Lock? Read/Write? Locked? Size? Lista di chi ha aperto il file?
+    int clients_waiting;
+    int to_delete;
+    pthread_cond_t is_deletable;
 }stored_file;
 void print_stored_file_info(FILE* stream,void* file);
 
