@@ -121,6 +121,20 @@ int openFile(char* pathname,int o_create,int o_lock){
     return EXIT_SUCCESS;
 }
 
+char* extract_file_name(char* original_path){
+	char* tmp;
+	char* token=strtok_r(original_path,"/",&tmp);
+	char* prec;
+	while (token){
+        	prec=token;
+        	token=strtok_r(NULL,"/",&tmp);
+	}
+    int dim=strlen(prec)+1; 
+    char* extracted=strndup(prec,dim);
+    free(original_path);
+    return extracted;
+}
+
 int readFile(char* pathname,void** buf,size_t* size){
     /* TESTING
     if(!pathname || !buf || !size){
@@ -184,9 +198,14 @@ int readFile(char* pathname,void** buf,size_t* size){
             getcwd(cwd,sizeof(cwd));
             printf("Sono nella cartella %s\n",cwd);
 
+            //Modifico il path del file in modo da salvare tutti i file letti in una unica cartella
+            char* save_pathname=strdup(pathname);
+            save_pathname=extract_file_name(save_pathname);
+
             //Scrivo il nuovo file
-            FILE* read_file=fopen(pathname,"w");
+            FILE* read_file=fopen(save_pathname,"w");
             if(!read_file){
+                free(save_pathname);
                 free(response);
                 free(content);
                 return -1;
@@ -196,12 +215,14 @@ int readFile(char* pathname,void** buf,size_t* size){
             printf("Ho scritto %d bytes nel file\n",(int)fwrite(content,sizeof(char),ctrl,read_file));
             if(fclose(read_file)==-1){
                 perror("Errore nella chiusura del file");
+                free(save_pathname);
                 free(response);
                 free(content);
                 return -1;
             }
             if(closedir(destination)==-1){
                 perror("Errore nella chiusura della cartella");
+                free(save_pathname);
                 free(response);
                 free(content);
                 return -1;
@@ -210,6 +231,7 @@ int readFile(char* pathname,void** buf,size_t* size){
             memset(cwd,'\0',128);
             getcwd(cwd,sizeof(cwd));
             printf("Sono nella cartella %s\n",cwd);
+            free(save_pathname);
         }
 
         free(content);
@@ -218,6 +240,122 @@ int readFile(char* pathname,void** buf,size_t* size){
     }
     free(response);
     return -1;
+}
+
+int readNFiles(int n, char* dirname){
+    //Controllo parametro dirname
+    if(!dirname){
+        errno=EINVAL;
+        perror("Parametri nulli");
+        return -1;
+    }
+
+    //Invio al server il codice comando
+    int op=5,ctrl;
+    SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
+    printf("Ho inviato %d bytes di codice comando %d\n",ctrl,op);
+    //Invio al server il numero di file che richiedo cioe' 'n'
+    SYSCALL(ctrl,write(fd_connection,&n,sizeof(int)),"Errore nella 'write' di 'n' in readNFiles");
+    printf("Ho inviato %d bytes di n %d\n",ctrl,n);
+
+    //Attendo dal server il numero di file che ricevero'
+    int nfiles;
+    SYSCALL(ctrl,read(fd_connection,&nfiles,sizeof(int)),"Errore nella 'write' del codice comando");
+    printf("Ho ricevuto dal server %d bytes di nr file %d\n",ctrl,nfiles);
+
+    DIR* destination=NULL;
+    if(read_dir){
+            //Verifico che dirname sia effettivamente una cartella
+            destination=opendir(read_dir);
+            if(!destination){
+                if(errno=ENOENT){ //Se la cartella non esiste la creo
+                    mkdir(read_dir,0777);
+                    destination=opendir(read_dir);
+                    printf("Cartella per i file letti non trovata, la creo\n");
+                    if(!destination){
+                        perror("Errore nell'apertura della cartella di destinazione dei file letti, i file letti non saranno memorizzati");
+                    }
+                }
+            }
+            //Vado nella cartella destinazione
+            chdir(read_dir);
+            char cwd[128];
+            getcwd(cwd,sizeof(cwd));
+            printf("Sono nella cartella %s\n",cwd);
+    }
+    //Ciclo di lettura di 'nfiles' files
+    for(int i=0;i<nfiles;i++){
+        printf("@@@@@GIRO %d@@@@@\n",i);
+        int dim;
+        //Leggo dimensione del pathname e pathname
+        SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione del pathname");
+        printf("Dimensione del pathname ricevuta %d per %d\n",ctrl,dim);
+        char* pathname=(char*)calloc(dim,sizeof(char));
+        if(pathname==NULL){
+            perror("Malloc content");
+            return -1;
+        }
+        SYSCALL(ctrl,read(fd_connection,pathname,dim),"Errore nella 'read' del pathname");
+        printf("Pathname %d per %s\n",ctrl,pathname);
+
+        //Leggo dimensione del contenuto
+        SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione del contenuto");
+        printf("Dimensione  ricevuta %d per %d\n",ctrl,dim);
+        char* content=(char*)calloc(dim,sizeof(char));
+        if(content==NULL){
+            perror("Malloc content");
+            free(pathname);
+            return -1;
+        }
+        SYSCALL(ctrl,read(fd_connection,content,dim),"Errore nella 'read' del contenuto");
+        printf("Contenuto di %s\n %s\n",pathname,content);
+
+        if(read_dir){
+            //Scrivo il nuovo file
+            pathname=extract_file_name(pathname);
+            FILE* read_file=fopen(pathname,"w");
+            if(!read_file){
+                printf("Errore nell'apertura del file\n");
+                free(pathname);
+                free(content);
+                return -1;
+            }
+            printf("Ho scritto %d bytes nel file\n",(int)fwrite(content,sizeof(char),dim,read_file));
+            if(fclose(read_file)==-1){
+                perror("Errore nella chiusura del file");
+                free(pathname);
+                free(content);
+                return -1;
+            }
+        }
+        free(pathname);
+        free(content);
+    }
+    
+    if(read_dir){
+        if(closedir(destination)==-1){
+                perror("Errore nella chiusura della cartella");
+                return -1;
+        }
+        chdir("..");
+        char cwd[128];
+        memset(cwd,'\0',128);
+        getcwd(cwd,sizeof(cwd));
+        printf("Sono nella cartella %s\n",cwd);
+    }   
+    
+    //Leggo la dimensione della risposta e la risposta
+    int dim;
+    SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
+    char* response=(char*)calloc(dim+1,sizeof(char));
+    if(response==NULL){
+        perror("Calloc");
+        return -1;
+    }
+    SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
+    printf("%s\n",response);
+    free(response);
+    return nfiles;
 }
 
 int writeFile(char* pathname,char* dirname){
@@ -289,26 +427,28 @@ int writeFile(char* pathname,char* dirname){
             goto read_1;
         }
 
-        //Verifico che dirname sia effettivamente una cartella
-        DIR* destination=opendir(dirname);
-        if(!destination){
-            if(errno=ENOENT){ //Se la cartella non esiste la creo
-                mkdir(dirname,0777);
-                destination=opendir(dirname);
-                printf("Cartella per i file espulsi non trovata, la creo\n");
-                if(!destination){
-                    fprintf(stderr,"Errore nell'apertura della cartella di destinazione dei file espulsi, i file ricevuti saranno eliminati");
-                    
-                }
-            }
-        }
-        printf("Ho aperto la cartella\n");
-        int expelled_files_to_send;
+        int expelled_files_to_send,first_time=1;
+        DIR* destination=NULL;
         do{
             SYSCALL(ctrl,read(fd_connection,&expelled_files_to_send,sizeof(int)),"Errore nella 'read' del flag expelled_file");
             printf("C'e' qualche file da ricevere dal server?%d\n",expelled_files_to_send);
 
             if(expelled_files_to_send){ //C'e' qualche file da ricevere
+                if(first_time){ //E' il primo file espulso, verifico se c'e' gia' la cartella di memorizzazione
+                    //Verifico che dirname sia effettivamente una cartella
+                    destination=opendir(dirname);
+                    if(!destination){
+                        if(errno=ENOENT){ //Se la cartella non esiste la creo
+                            mkdir(dirname,0777);
+                            destination=opendir(dirname);
+                            printf("Cartella per i file espulsi non trovata, la creo\n");
+                            if(!destination){
+                                fprintf(stderr,"Errore nell'apertura della cartella di destinazione dei file espulsi, i file ricevuti saranno eliminati");
+                            }
+                        }
+                    }
+                    printf("Ho aperto la cartella\n");
+                }
                 int dim_name,dim_content;
 
                 //-----Lettura del nome del file espulso
@@ -362,10 +502,11 @@ int writeFile(char* pathname,char* dirname){
         }while(expelled_files_to_send);
 
         
-
-        if(closedir(destination)==-1){
-            perror("Errore in chiusura della cartella di destinazione dei file espulsi");
-            return -1;
+        if(destination){
+            if(closedir(destination)==-1){
+                perror("Errore in chiusura della cartella di destinazione dei file espulsi");
+                return -1;
+            }
         }
     }else{
         int flag=0;

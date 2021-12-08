@@ -16,3 +16,4 @@ int lockFile(char* pathname);
 int unlockFile(char* pathname);
 int removeFile(char* pathname);
 int appendToFile(char* pathname,void* buf,size_t size,char* dirname);
+int readNFiles(int n, char* dirname);

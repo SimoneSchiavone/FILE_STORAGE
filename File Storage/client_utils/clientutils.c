@@ -1,3 +1,7 @@
+// created by Simone Schiavone at 20211128 16:17.
+// @Università di Pisa
+// Matricola 582418
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

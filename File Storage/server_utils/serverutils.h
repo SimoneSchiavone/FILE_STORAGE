@@ -20,22 +20,22 @@
 }
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
 /*-----Parametri di configurazione del server-----*/
-char  config_file_path[128]; //path del file testuale di configurazione
+char config_file_path[128]; //path del file testuale di configurazione
 int n_workers; // numero thread workers del modello Manager-Worker
-int files_bound;  //numero massimo di files
-int data_bound;  //dimensione massima dei files in MBytes
+int files_bound; //numero massimo di files
+int data_bound; //dimensione massima dei files in MBytes
 int replacement_policy; //politica di rimpiazzamento dei file nello storage
 char socket_name[128]; //nome del socket AF_UNIX
 char logfilename[128]; //nome del file di log
 int max_connections; //numero massimo di connessioni contemporanee supportate
-
-int active_connections;
+int active_connections; //numero di connessioni attive
 
 /*-----File-----*/
 typedef struct stored_file{
     char* content; //contenuto
     size_t size; //dimensione
     struct timeval creation_time; //tempo di creazione, necessario per la politica FIFO
+    struct timeval last_operation; //tempo dell'ultima modifica
 
     int fd_holder; //fd della connessione del proprietario del file; Se -1 il file e' sbloccato
     pthread_mutex_t mutex_file; //lock del file
@@ -71,6 +71,7 @@ typedef struct response{
 /*-----Hash Table Storage-------*/
 hash_table_t* storage;
 pthread_mutex_t mutex_storage;
+int not_empty_files_num;
 int data_size;
 int max_data_size;
 int max_data_num;
@@ -82,7 +83,7 @@ int DestroyStorage();
 pthread_t* threadpool;
 int terminated_workers;
 pthread_mutex_t term_var;
-IntLinkedList queue; //FORSE VA INIZIALIZZATA A NULL
+IntLinkedList queue;
 
 
 

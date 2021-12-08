@@ -62,7 +62,7 @@ int main(int argc,char** argv){
 
     char* socketname=NULL;
     int enable_printing=0;
-    Welcome();
+    //Welcome();
 
     operation_node* command_list=NULL;
 
@@ -71,6 +71,15 @@ int main(int argc,char** argv){
     while((opt=getopt(argc,argv,"hf:w:W:D:r:R:d:t:l:u:c:p"))!=-1){
         switch (opt){
             case 'h':{ //Stampa opzioni accettate e termina
+                PrintAcceptedOptions();
+                goto exit;
+                /*
+                if(print_options){
+                    fprintf(stderr,"L'opzione -h non puo' essere ripetuto\n");
+                    goto exit;
+                }else{
+                    print_options=1;
+                }
                 //Nuovo nodo della lista  di comandi
                 operation_node* new=(operation_node*)malloc(sizeof(operation_node));
                 if(!new){
@@ -90,38 +99,35 @@ int main(int argc,char** argv){
                 new->op->op_code=0;
                 new->op->argc=0;
                 new->op->args=NULL;
-                /*
-                PrintAcceptedOptions();
-                goto exit;*/
+            
                 if(list_insert_start(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
                     goto exit;
                 }
-                break;
+                break;*/
             }
             case 'f':{ //Imposta nome del socket AF_UNIX
-                if(socketname==NULL)
+                if(socketname==NULL){
                     socketname=optarg;
-                else{
+                    break;
+                }else{
                     fprintf(stderr,"Hai gia' impostato il nome del socket (%s)\n",socketname);
                     error=1;
                     goto exit;
                 }
-                break;
             }
             case 'w':{ //Invia al server 'n' file della cartella dirname
                 char* tmp;
-                int c=1;
-                char* directory=strtok_r(optarg,",",&tmp);
+                int c=1; //argc
+                char* directory=strtok_r(optarg,",",&tmp); //directory che contiene i file da inviare
                 if(!directory){
                     fprintf(stderr,"Errore opzione -w: nome directory necessario");
                     error=1;
                     goto exit;
-                }else
-                    printf("Ho parsato %s\n",directory);
-                char* number=strtok_r(NULL,",",&tmp);
+                }
+                char* number=strtok_r(NULL,",",&tmp); //nr di file da inviare (argomento opzionale)
                 if(number){
                     if(strtok_r(NULL,",",&tmp)){
                         fprintf(stderr,"Errore opzione -w: troppi argomenti");
@@ -146,11 +152,11 @@ int main(int argc,char** argv){
                     goto exit;
                 }
                 new->next=NULL;
+
                 //Preparazione operazione
-                new->op->op_code=3;
-                new->op->argc=1;
-                new->op->args=(char**)malloc(sizeof(char*)); //una o due stringhe
-                new->op->args[0]=strndup(number,strlen(number));
+                new->op->op_code=0;
+                new->op->argc=c;
+                new->op->args=(char**)malloc(c*sizeof(char*)); //una o due stringhe
                 if(!new->op->args){
                     fprintf(stderr,"Errore nella malloc degli argomenti\n");
                     error=-1;
@@ -158,9 +164,13 @@ int main(int argc,char** argv){
                     free(new->op);
                     goto exit;
                 }
+                new->op->args[0]=strdup(number);
+                new->op->args[1]=strdup(directory);
 
                 
                 w_or_W_to_do=1;
+
+                //Inserimento in fondo alla lista dei comandi
                 if(list_insert_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
@@ -172,8 +182,8 @@ int main(int argc,char** argv){
             }
             case 'W':{ //Invia al server i file specificati
                 char* tmp;
-                int i=0;
-                int dim=Count_Commas(optarg)+1;
+                //conto le virgole della stringa per definire quanti argomenti sono stati passati
+                int dim=Count_Commas(optarg)+1; 
 
                 //Nuovo nodo della lista  di comandi
                 operation_node* new=(operation_node*)malloc(sizeof(operation_node));
@@ -182,6 +192,8 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
+                new->next=NULL;
+
                 //Nuova operazione
                 new->op=(pending_operation*)malloc(sizeof(pending_operation));
                 if(!new->op){
@@ -192,8 +204,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->next=NULL;
-                new->op->op_code=4;
+                new->op->op_code=1;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -205,6 +216,7 @@ int main(int argc,char** argv){
                 }
 
                 char* file=strtok_r(optarg,",",&tmp);
+                int i=0;
                 while(file){
                     new->op->args[i]=strndup(file,strlen(file));
                     i++;
@@ -233,7 +245,6 @@ int main(int argc,char** argv){
             }
             case 'r':{ //Leggi dal server i file specificati
                 char* tmp;
-                int i=0;
                 int dim=Count_Commas(optarg)+1;
 
                 //Nuovo nodo della lista  di comandi
@@ -243,6 +254,8 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
+                new->next=NULL;
+
                 //Nuova operazione
                 new->op=(pending_operation*)malloc(sizeof(pending_operation));
                 if(!new->op){
@@ -253,8 +266,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->next=NULL;
-                new->op->op_code=6;
+                new->op->op_code=2;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -266,6 +278,7 @@ int main(int argc,char** argv){
                 }
 
                 char* file=strtok_r(optarg,",",&tmp);
+                int i=0;
                 while(file){
                     new->op->args[i]=strndup(file,strlen(file));
                     i++;
@@ -282,6 +295,7 @@ int main(int argc,char** argv){
                 break;
             }
             case 'R':{ //Leggi 'n' file qualsiasi dal server, se n non e' specificato leggi tutti i file
+                //TODO: Da implementare
                 printf("Caso R con argomento\n");
                 printf("%s\n",optarg);
                 int n;
@@ -295,12 +309,11 @@ int main(int argc,char** argv){
                 break;
             }
             case 't':{ //Tempo che intercorre tra l'invio di due richieste successive
-                delay=atoi(optarg);
+                delay=(int)strtol(optarg,NULL,10);
                 break;
             }
             case 'l':{
                 char* tmp;
-                int i=0;
                 int dim=Count_Commas(optarg)+1;
 
                 //Nuovo nodo della lista  di comandi
@@ -310,6 +323,8 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
+                new->next=NULL;
+
                 //Nuova operazione
                 new->op=(pending_operation*)malloc(sizeof(pending_operation));
                 if(!new->op){
@@ -320,7 +335,6 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->next=NULL;
                 new->op->op_code=4;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
@@ -333,6 +347,7 @@ int main(int argc,char** argv){
                 }
 
                 char* file=strtok_r(optarg,",",&tmp);
+                int i=0;
                 while(file){
                     new->op->args[i]=strndup(file,strlen(file));
                     i++;
@@ -350,7 +365,6 @@ int main(int argc,char** argv){
             }
             case 'u':{
                 char* tmp;
-                int i=0;
                 int dim=Count_Commas(optarg)+1;
 
                 //Nuovo nodo della lista  di comandi
@@ -360,6 +374,8 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
+                new->next=NULL;
+
                 //Nuova operazione
                 new->op=(pending_operation*)malloc(sizeof(pending_operation));
                 if(!new->op){
@@ -369,9 +385,8 @@ int main(int argc,char** argv){
                     goto exit;
                 }
                 
-                //Preparazione operazione
-                new->next=NULL;
-                new->op->op_code=4;
+                //Preparazione operazione                
+                new->op->op_code=5;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -383,6 +398,7 @@ int main(int argc,char** argv){
                 }
 
                 char* file=strtok_r(optarg,",",&tmp);
+                int i=0;
                 while(file){
                     new->op->args[i]=strndup(file,strlen(file));
                     i++;
@@ -400,7 +416,6 @@ int main(int argc,char** argv){
             }
             case 'c':{
                 char* tmp;
-                int i=0;
                 int dim=Count_Commas(optarg)+1;
 
                 //Nuovo nodo della lista  di comandi
@@ -410,6 +425,8 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
+                new->next=NULL;
+
                 //Nuova operazione
                 new->op=(pending_operation*)malloc(sizeof(pending_operation));
                 if(!new->op){
@@ -420,8 +437,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->next=NULL;
-                new->op->op_code=4;
+                new->op->op_code=6;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -433,6 +449,7 @@ int main(int argc,char** argv){
                 }
 
                 char* file=strtok_r(optarg,",",&tmp);
+                int i=0;
                 while(file){
                     new->op->args[i]=strndup(file,strlen(file));
                     i++;
@@ -474,8 +491,7 @@ int main(int argc,char** argv){
 
     print_command_list(command_list);
 
-    //DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
-    printf("Enableprinting:%d\n",enable_printing);
+    //printf("Enableprinting:%d\n",enable_printing);
      
     struct timespec a;
     a.tv_sec=15;
@@ -488,50 +504,19 @@ int main(int argc,char** argv){
             goto exit;
     }
 
-    printf("\n\n*****OPEN FILE TOPOLINO*****\n");
-    openFile("topolino.txt\0",1,1);
-
+    printf("\n-----OPENFILE GREENPASS.PDF-----\n");
+    openFile("File di prova/greenpass.pdf\0",1,1);
     sleep(1);
-
-    printf("\n\n*****WRITE FILE TOPOLINO*****\n");
-    writeFile("topolino.txt\0","Espulsi");
-
+    printf("\n-----WRITEFILE GREENPASS.PDF-----\n");
+    writeFile("File di prova/greenpass.pdf\0","Espulsi");
     sleep(1);
-
-    printf("\n\n*****READ FILE TOPOLINO*****\n");
-    readFile("topolino.txt\0",NULL,NULL);
-
+    printf("\n-----LEGGO -1 FILE-----\n");
+    read_dir="File Letti\0";
+    readNFiles(-1,"File Letti");
     sleep(1);
-
-    printf("\n\n*****APPEND TO FILE TOPOLINO*****\n");
-    char* to_append="CIAONE\0";    
-    appendToFile("topolino.txt\0",to_append,strlen(to_append)+1,"Espulsi");
-
+    printf("\n-----READ FILE GREENPASS.PDF-----\n");
+    readFile("File di prova/greenpass.pdf\0",NULL,NULL);
     sleep(1);
-
-    printf("\n\n*****READ FILE TOPOLINO*****\n");
-    readFile("topolino.txt\0",NULL,NULL);
-
-    sleep(1);
-
-    printf("\n\n*****UNLOCK FILE TOPOLINO*****\n");
-    unlockFile("topolino.txt\0");
-
-    sleep(1);
-
-    printf("\n\n*****REMOVE FILE TOPOLINO*****\n");
-    removeFile("topolino.txt\0");
-
-    sleep(1);
-
-    printf("\n\n*****LOCK FILE TOPOLINO*****\n");
-    lockFile("topolino.txt\0");
-
-    sleep(1);
-    
-    printf("\n\n*****REMOVE FILE TOPOLINO*****\n");
-    removeFile("topolino.txt\0");
-
     closeConnection(socketname);
 
     exit:

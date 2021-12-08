@@ -1,3 +1,7 @@
+// created by Simone Schiavone at 20211128 16:18.
+// @Università di Pisa
+// Matricola 582418
+
 void Welcome();
 void PrintAcceptedOptions();
 int Count_Commas(char* str);

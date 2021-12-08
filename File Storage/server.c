@@ -38,7 +38,7 @@ int main(){
     int ctrl;
 
     //-----Messaggio di benvenuto-----
-    Welcome();
+    //Welcome();
 
     //-----Configurazione del server-----
     DefaultConfiguration();
@@ -177,7 +177,7 @@ int main(){
                     SYSCALL(byte_read,read(wtm_pipe[0],&received_fd,4),"Errore nella 'read' del fd restituito dal worker");
                     SYSCALL(byte_read,read(wtm_pipe[0],&finished,4),"Errore nella 'read' del flag di terminazione client proveniente dal worker");
                     if(finished){
-                        if(received_fd!=-1){
+                        if(received_fd!=-1 && received_fd!=1){
                             printf("[MAIN] Il client sul fd %d ha eseguito una operazione ed è TERMINATO\n",received_fd);
                             FD_CLR(received_fd,&set);
                             Search_New_Max_FD(set,fd_max);
@@ -228,6 +228,7 @@ int main(){
     printf("Storage al momento della terminazione:\n");
     hash_dump(stdout,storage,print_stored_file_info);
     CHECKRETURNVALUE(ctrl,DestroyStorage(),"Errore distruggendo lo storage",;);
+    printf("Ho distrutto lo storage ed i file rimasti!\n");
     
     max_data_num= (max_data_num == -1) ? 0 : max_data_num;
     max_data_size= (max_data_size == -1) ? 0 : max_data_size;
