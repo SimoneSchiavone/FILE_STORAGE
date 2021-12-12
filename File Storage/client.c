@@ -19,7 +19,7 @@ al server multithreaded.*/
 #include <pthread.h>
 #include <ctype.h>
 #include <signal.h>
-
+#include <dirent.h>
 #include "client_utils/serverAPI.h"
 #include "client_utils/clientutils.h"
 
@@ -43,10 +43,14 @@ static void signal_handler(int signum){
 int error;
 int delay;
 int print_options;
+file_name* opened_files;
+
+void Execute_Requests(operation_node* request_list);
 
 int main(int argc,char** argv){
     error=0,delay=0,w_or_W_to_do=0,print_options=0;
     backup_dir=NULL;
+    opened_files=NULL;
 
     int ctrl;
     struct sigaction s;
@@ -96,11 +100,11 @@ int main(int argc,char** argv){
                     goto exit;
                 }
                 //Preparazione operazione
-                new->op->op_code=0;
+                new->op->option=0;
                 new->op->argc=0;
                 new->op->args=NULL;
             
-                if(list_insert_start(&command_list,new)==-1){
+                if(list_insert_operation_start(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
@@ -127,12 +131,13 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
+                printf("Ho trovato:%s\n",directory);
                 char* number=strtok_r(NULL,",",&tmp); //nr di file da inviare (argomento opzionale)
                 if(number){
+                    c++;
                     if(strtok_r(NULL,",",&tmp)){
                         fprintf(stderr,"Errore opzione -w: troppi argomenti");
                         error=-1;
-                        c++;
                         goto exit;
                     }
                 }
@@ -154,7 +159,7 @@ int main(int argc,char** argv){
                 new->next=NULL;
 
                 //Preparazione operazione
-                new->op->op_code=0;
+                new->op->option=opt;
                 new->op->argc=c;
                 new->op->args=(char**)malloc(c*sizeof(char*)); //una o due stringhe
                 if(!new->op->args){
@@ -164,14 +169,14 @@ int main(int argc,char** argv){
                     free(new->op);
                     goto exit;
                 }
-                new->op->args[0]=strdup(number);
-                new->op->args[1]=strdup(directory);
+                new->op->args[1]=strdup(number);
+                new->op->args[0]=strdup(directory);
 
                 
                 w_or_W_to_do=1;
 
                 //Inserimento in fondo alla lista dei comandi
-                if(list_insert_end(&command_list,new)==-1){
+                if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
@@ -204,7 +209,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->op->op_code=1;
+                new->op->option=opt;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -225,7 +230,7 @@ int main(int argc,char** argv){
 
                 w_or_W_to_do=1;
 
-                if(list_insert_end(&command_list,new)==-1){
+                if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
@@ -266,7 +271,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->op->op_code=2;
+                new->op->option=opt;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -285,7 +290,7 @@ int main(int argc,char** argv){
                     file=strtok_r(NULL,",",&tmp);
                 }
 
-                if(list_insert_end(&command_list,new)==-1){
+                if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
@@ -335,7 +340,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->op->op_code=4;
+                new->op->option=opt;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -354,7 +359,7 @@ int main(int argc,char** argv){
                     file=strtok_r(NULL,",",&tmp);
                 }
 
-                if(list_insert_end(&command_list,new)==-1){
+                if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
@@ -386,7 +391,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione                
-                new->op->op_code=5;
+                new->op->option=opt;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -405,7 +410,7 @@ int main(int argc,char** argv){
                     file=strtok_r(NULL,",",&tmp);
                 }
 
-                if(list_insert_end(&command_list,new)==-1){
+                if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
@@ -437,7 +442,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->op->op_code=6;
+                new->op->option=6;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -456,7 +461,7 @@ int main(int argc,char** argv){
                     file=strtok_r(NULL,",",&tmp);
                 }
 
-                if(list_insert_end(&command_list,new)==-1){
+                if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
                     free(new->op);
@@ -490,9 +495,10 @@ int main(int argc,char** argv){
     }
 
     print_command_list(command_list);
-
+    Execute_Requests(command_list);
+    goto exit;
     //printf("Enableprinting:%d\n",enable_printing);
-     
+    
     struct timespec a;
     a.tv_sec=15;
 
@@ -525,4 +531,63 @@ int main(int argc,char** argv){
             return EXIT_SUCCESS;
         else
             return EXIT_FAILURE;
+}
+
+void Execute_Requests(operation_node* request_list){
+    operation_node* curr=request_list;
+    while(curr!=NULL){
+        //Ritardo artificiale tra le operazione
+        sleep(delay);
+
+        //Operazione del nodo corrente
+        if(curr->op->option=='W'){ //Operazione di scrittura di una lista di file
+            for(int i=0;i<curr->op->args;i++){ //Scorriamo i file da scrivere sul file storage
+                int ok_open=1;
+                if(is_file_name_in_list(opened_files,curr->op->args[i])){ //il file non e' gia' stato aperto
+                    if(openFile(curr->op->args[i],1,1)!=0){
+                        fprintf(stderr,"Errore nella OpenFile\n");
+                        ok_open=0;
+                    }
+                }
+
+                //WriteFile con cartella di backup se disponibile
+                if(ok_open){
+                    if(writeFile(curr->op->args[i],backup_dir)!=0){
+                        fprintf(stderr,"Errore nella writeFile\n");
+                    }
+                }
+            }
+        }
+
+
+        if(curr->op->option='w'){ //Operazione di scrittura di "n" file della cartella
+            file_name* to_send=NULL;
+            if(curr->op->args==2){ //caso 'n' specificato
+                if(curr->op->args[1]<0){
+                    fprintf(stderr,"Opzione -W con n<0 non consentita\n");
+                }else{
+                    //carico i nomi dei file da inviare
+                    if(curr->op->args[1]==0){
+                        if(files_in_directory(&to_send,curr->op->args[0])==-1){
+                            fprintf(stderr,"Errore nella lettura dei file da inviare\n");
+                        }
+                    }else{
+                        if(n_files_in_directory(&to_send,curr->op->args[0],curr->op->args[1])==-1){
+                            fprintf(stderr,"Errore nella lettura dei file da inviare");
+                        }
+                    }
+                    //invio i file al server
+                    file_name* f=to_send;
+                    while(f){
+                        if(writeFile(f->name,backup_dir)==-1){
+                            fprintf(stderr,"Errore nella WriteFile di %s\n",f->name);
+                        }
+                        f=f->next;
+                    }
+                }
+            }
+        }
+
+        
+    }
 }

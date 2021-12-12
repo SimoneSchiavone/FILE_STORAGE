@@ -1,10 +1,10 @@
 // created by Simone Schiavone at 20211128 16:17.
 // @Università di Pisa
 // Matricola 582418
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "clientutils.h"
 
 void Welcome(){
@@ -48,7 +48,7 @@ int Count_Commas(char* str){
     return c;
 }
 
-int list_insert_end(operation_node** head,operation_node* to_insert){
+int list_insert_operation_end(operation_node** head,operation_node* to_insert){
     if(!to_insert)    
         return -1;
     if(*head==NULL){
@@ -65,7 +65,7 @@ int list_insert_end(operation_node** head,operation_node* to_insert){
     return EXIT_SUCCESS;
 }
 
-int list_insert_start(operation_node** head,operation_node* to_insert){
+int list_insert_operation_start(operation_node** head,operation_node* to_insert){
     if(!to_insert)    
         return -1;
     to_insert->next=*head;
@@ -96,14 +96,142 @@ void print_command_list(operation_node* head){
     operation_node* curr=head;
     int i=0;
     while (curr){
-        printf("Comando nr %d\n Operazione %d Argc %d\nArgomenti: ",i++,curr->op->op_code,curr->op->argc);
+        printf("Comando nr %d\nOperazione %c Argc %d\nArgomenti: ",i++,curr->op->option,curr->op->argc);
         int w;
         for(w=0;w<curr->op->argc;w++){
             printf("%s ",curr->op->args[w]);
         }
         if(w==0)
             printf(" (None)\n");
-        printf("\n");
+        printf("\n\n");
         curr=curr->next;
     }
 }
+
+int list_insert_name(file_name** head,char* name){
+    if(!name)    
+        return -1;
+    file_name* to_insert=(file_name*)malloc(sizeof(file_name));
+    if(!to_insert)
+        return -1;
+    to_insert->next=(*head);
+    (*head)=to_insert;
+    return EXIT_SUCCESS;
+}
+
+int is_file_name_in_list(file_name* head,char* name){
+    file_name* curr=head;
+    while(curr){
+        if(strcmp(curr->name,name)==0)
+            return 1;
+        curr=curr->next;
+    }
+    return 0;
+}
+
+void free_name_list(file_name* head){
+    file_name* tmp=head;
+    while(head){
+        tmp=head;
+        head=head->next;
+        free(tmp->name);
+        free(tmp);
+    }
+}
+
+int isdot(const char dir[]) {
+    int l = strlen(dir);
+    if ( (l>0 && dir[l-1] == '.') ) return 1;
+    return 0;
+}
+
+int files_in_directory(file_name** head,char* dirname){
+    if(chdir(dirname)==-1){
+        fprintf(stderr,"Errore cambiando la cartella\n");
+        return -1;
+    }
+
+    //Apertura cartella
+    DIR* radix=opendir(".");
+    if(!radix){
+        fprintf(stderr,"Errore nell'apertura della cartella corrente\n");
+        return -1;
+    }
+    struct dirent* currentfile=NULL;
+    currentfile=readdir(radix);
+    while(currentfile){
+        struct stat c;
+        if(stat(currentfile->d_name,&c)==-1){
+            fprintf(stderr,"Errore nella stat\n");
+            closedir(radix);
+            return -1;
+        }
+        if(S_ISDIR(c.st_mode)){ //Se e' una directory ricorro
+            if(!isdot(currentfile->d_name)){
+		        printf("%s e' una cartella, ricorro\n",currentfile->d_name);
+	            files_in_directory(head,currentfile->d_name);
+	            chdir("..");
+	        }
+        }else{ //Se e' un file inserisco il suo nome in lista
+            file_name* to_insert=(file_name*)malloc(sizeof(file_name));
+            to_insert->name=strdup(currentfile->d_name);
+            to_insert->next=(*head);
+            (*head)=to_insert;
+        }
+        currentfile=readdir(radix);
+    }
+    if(closedir(radix)==-1){
+        fprintf(stderr,"Errore nella chiusura della cartella %s\n",dirname);
+        return -1;
+    }
+    return 0;
+}
+
+int n_files_in_directory(file_name** head,char* dirname,int num){
+    if(chdir(dirname)==-1){
+        fprintf(stderr,"Errore cambiando la cartella\n");
+        return -1;
+    }
+
+    //Apertura cartella
+    DIR* radix=opendir(".");
+    if(!radix){
+        fprintf(stderr,"Errore nell'apertura della cartella corrente\n");
+        return -1;
+    }
+    struct dirent* currentfile=NULL;
+    currentfile=readdir(radix);
+    while(currentfile){
+        if(!num){
+            closedir(radix);
+            return 0;
+        }
+
+        struct stat c;
+        if(stat(currentfile->d_name,&c)==-1){
+            fprintf(stderr,"Errore nella stat\n");
+            closedir(radix);
+            return -1;
+        }
+        if(S_ISDIR(c.st_mode)){ //Se e' una directory ricorro
+            if(!isdot(currentfile->d_name)){
+		        printf("%s e' una cartella, ricorro\n",currentfile->d_name);
+	            n_files_in_directory(head,currentfile->d_name,num);
+	            chdir("..");
+	        }
+        }else{ //Se e' un file inserisco il suo nome in lista
+            file_name* to_insert=(file_name*)malloc(sizeof(file_name));
+            to_insert->name=strdup(currentfile->d_name);
+            to_insert->next=(*head);
+            (*head)=to_insert;
+        }
+        currentfile=readdir(radix);
+        num--;
+    }
+    if(closedir(radix)==-1){
+        fprintf(stderr,"Errore nella chiusura della cartella %s\n",dirname);
+        return -1;
+    }
+    return 0;
+}
+

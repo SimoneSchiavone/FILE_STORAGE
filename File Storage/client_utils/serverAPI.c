@@ -523,12 +523,12 @@ int writeFile(char* pathname,char* dirname){
     //Alloco un buffer per leggere la risposta del server
     char* response=(char*)calloc(dim+1,sizeof(char));
     if(response==NULL)
-        return EXIT_FAILURE;
+        return -1;
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
     printf("Ho ricevuto dal server: %s\n",response);
 
     free(response);
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 int lockFile(char* pathname){
