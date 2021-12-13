@@ -690,7 +690,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
     printf("Crea:%s Last:%s\n",ctime(&(file->creation_time).tv_sec),ctime(&(file->last_operation).tv_sec));
     sleep(2);*/
     gettimeofday(&file->last_operation,NULL); //Salvataggio tempo di ultima operazione
-    printf("Creat:%d.%ld Last:%d.%ld\n",(int)file->creation_time.tv_sec,file->creation_time.tv_usec,(int)file->last_operation.tv_sec,file->last_operation.tv_usec);
+    //printf("Creat:%d.%ld Last:%d.%ld\n",(int)file->creation_time.tv_sec,file->creation_time.tv_usec,(int)file->last_operation.tv_sec,file->last_operation.tv_usec);
     
     pthread_mutex_unlock(&file->mutex_file);
 
@@ -862,7 +862,7 @@ response ReadFile(char* pathname,stored_file** found,int fd){
         }else{
             //Il file non e' vuoto
             r.code=0;
-            sprintf(r.message,"Il file %s e' stato trovato nello storage, ecco il contenuto",pathname);
+            sprintf(r.message,"OK, Il file %s e' stato trovato nello storage, ecco il contenuto",pathname);
             LOGFILEAPPEND("[Client %d] Il file %s e' stato letto con successo\n",fd);
             gettimeofday(&(*found)->last_operation,NULL); 
         }

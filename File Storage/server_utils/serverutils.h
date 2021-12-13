@@ -64,7 +64,7 @@ void PrintConfiguration();
 int ExecuteRequest(int fun,int fd);
 typedef struct response{
     int code;
-    char message[100];
+    char message[256];
 }response;
 
 

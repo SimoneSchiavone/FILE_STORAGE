@@ -25,7 +25,6 @@ al server multithreaded.*/
 
 #define SOCKNAME "./SocketFileStorage"
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
-#define IF_PRINT_ENABLED(print) if(print_options){print}
 
 /*
 static void signal_handler(int signum){
@@ -42,7 +41,6 @@ static void signal_handler(int signum){
 }*/
 int error;
 int delay;
-int print_options;
 file_name* opened_files;
 
 void Execute_Requests(operation_node* request_list);
@@ -65,8 +63,7 @@ int main(int argc,char** argv){
     SYSCALL(ctrl,pthread_sigmask(SIG_SETMASK,&set,NULL),"Errore in sigmask rimozione maschera");
 
     char* socketname=NULL;
-    int enable_printing=0;
-    //Welcome();
+    Welcome();
 
     operation_node* command_list=NULL;
 
@@ -471,12 +468,13 @@ int main(int argc,char** argv){
                 break;
             }
             case 'p':{
-                if(enable_printing==1){
+                if(print_options==1){
                     fprintf(stderr,"-p non puo' essere ripetuto piu' volte\n");
                     error=1;
                     goto exit;
                 }
-                enable_printing=1;
+                printf("#Stampe ABILITATE#\n");
+                print_options=1;
                 break;
             }
             case ':':{
@@ -496,8 +494,7 @@ int main(int argc,char** argv){
 
     print_command_list(command_list);
     Execute_Requests(command_list);
-    goto exit;
-    //printf("Enableprinting:%d\n",enable_printing);
+    //goto exit;
     
     struct timespec a;
     a.tv_sec=15;
@@ -527,6 +524,7 @@ int main(int argc,char** argv){
 
     exit:
         list_destroy(command_list);
+        free_name_list(opened_files);
         if(!error)
             return EXIT_SUCCESS;
         else
@@ -541,9 +539,9 @@ void Execute_Requests(operation_node* request_list){
 
         //Operazione del nodo corrente
         if(curr->op->option=='W'){ //Operazione di scrittura di una lista di file
-            for(int i=0;i<curr->op->args;i++){ //Scorriamo i file da scrivere sul file storage
+            for(int i=0;i<curr->op->argc;i++){ //Scorriamo i file da scrivere sul file storage
                 int ok_open=1;
-                if(is_file_name_in_list(opened_files,curr->op->args[i])){ //il file non e' gia' stato aperto
+                if(!is_file_name_in_list(opened_files,curr->op->args[i])){ //il file non e' gia' stato aperto
                     if(openFile(curr->op->args[i],1,1)!=0){
                         fprintf(stderr,"Errore nella OpenFile\n");
                         ok_open=0;
@@ -560,10 +558,11 @@ void Execute_Requests(operation_node* request_list){
         }
 
 
-        if(curr->op->option='w'){ //Operazione di scrittura di "n" file della cartella
+        if(curr->op->option=='w'){ //Operazione di scrittura di "n" file della cartella
             file_name* to_send=NULL;
-            if(curr->op->args==2){ //caso 'n' specificato
-                if(curr->op->args[1]<0){
+            if(curr->op->argc==2){ //caso 'n' specificato
+                int w=strtol(curr->op->args[1],NULL,10);
+                if(w<0){
                     fprintf(stderr,"Opzione -W con n<0 non consentita\n");
                 }else{
                     //carico i nomi dei file da inviare
@@ -572,22 +571,62 @@ void Execute_Requests(operation_node* request_list){
                             fprintf(stderr,"Errore nella lettura dei file da inviare\n");
                         }
                     }else{
-                        if(n_files_in_directory(&to_send,curr->op->args[0],curr->op->args[1])==-1){
+                        int w=strtol(curr->op->args[1],NULL,10);
+                        if(n_files_in_directory(&to_send,curr->op->args[0],w)==-1){
                             fprintf(stderr,"Errore nella lettura dei file da inviare");
                         }
                     }
                     //invio i file al server
                     file_name* f=to_send;
                     while(f){
-                        if(writeFile(f->name,backup_dir)==-1){
-                            fprintf(stderr,"Errore nella WriteFile di %s\n",f->name);
+                        int ok_open=1;
+                        if(!is_file_name_in_list(opened_files,f->name)){ //il file non e' gia' stato aperto
+                            if(openFile(f->name,1,1)!=0){
+                                fprintf(stderr,"Errore nella OpenFile\n");
+                                ok_open=0;
+                            }
+                        }
+                        if(ok_open){
+                            if(writeFile(f->name,backup_dir)==-1){
+                                fprintf(stderr,"Errore nella WriteFile di %s\n",f->name);
+                            }
                         }
                         f=f->next;
                     }
+                    free_name_list(to_send);
                 }
             }
         }
 
-        
+        if(curr->op->option=='r'){ //Operazione di lettura di una lista di file
+            for(int i=0;i<curr->op->argc;i++){
+                // int ok_open=1; Va aperto??????????????????????????????????????
+                //if(readFile(curr->op->args[i],
+            }
+        }
+
+        if(curr->op->option=='l'){
+            for(int i=0;i<curr->op->argc;i++){
+                if(lockFile(curr->op->args[i])==-1){
+                    fprintf(stderr,"Errore nella lockFile\n");
+                }
+            }
+        }
+
+        if(curr->op->option=='u'){
+            for(int i=0;i<curr->op->argc;i++){
+                if(unlockFile(curr->op->args[i])==-1){
+                    fprintf(stderr,"Errore nella lockFile\n");
+                }
+            }
+        }
+
+        if(curr->op->option=='c'){
+            for(int i=0;i<curr->op->argc;i++){
+                if(unlockFile(curr->op->args[i])==-1){
+                    fprintf(stderr,"Errore nella lockFile\n");
+                }
+            }
+        }
     }
 }
