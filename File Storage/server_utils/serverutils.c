@@ -863,7 +863,7 @@ response ReadFile(char* pathname,stored_file** found,int fd){
             //Il file non e' vuoto
             r.code=0;
             sprintf(r.message,"OK, Il file %s e' stato trovato nello storage, ecco il contenuto",pathname);
-            LOGFILEAPPEND("[Client %d] Il file %s e' stato letto con successo\n",fd);
+            LOGFILEAPPEND("[Client %d] Il file %s e' stato letto con successo\n",fd,pathname);
             gettimeofday(&(*found)->last_operation,NULL); 
         }
     }

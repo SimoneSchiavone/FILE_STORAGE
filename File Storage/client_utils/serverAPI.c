@@ -40,7 +40,7 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
     while(1){
         IF_PRINT_ENABLED(printf("[openConnection] Tentativo di connessione nr %d al socket %s\n",i,sockname););
         if((connect(fd_connection,(struct sockaddr*)&sa,sizeof(sa)))==0){
-            IF_PRINT_ENABLED(printf("[openConnection] Connessione con FILE STORAGE correttamente stabilita mediante il socket %s\n!",sockname);)
+            IF_PRINT_ENABLED(printf("[openConnection] Connessione con FILE STORAGE correttamente stabilita mediante il socket %s!\n",sockname);)
             return EXIT_SUCCESS;
         }    
         int timetosleep=msec*1000;
@@ -99,7 +99,7 @@ int openFile(char* pathname,int o_create,int o_lock){
         return -1;
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    IF_PRINT_ENABLED(printf("[OpenFile] %s\n",response););
+    IF_PRINT_ENABLED(printf("[openFile] %s\n",response););
     free(response);
     return EXIT_SUCCESS;
 }

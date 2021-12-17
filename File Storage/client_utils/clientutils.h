@@ -33,6 +33,7 @@ typedef struct file_name{
 int list_insert_name(file_name** head, char* name);
 int is_file_name_in_list(file_name* head, char* name);
 void free_name_list(file_name* head);
+void print_name_list(file_name* head);
 
 int files_in_directory(file_name** head,char* d);
 int n_files_in_directory(file_name** head,char* d,int num);

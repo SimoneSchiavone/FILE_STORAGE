@@ -439,7 +439,7 @@ int main(int argc,char** argv){
                 }
                 
                 //Preparazione operazione
-                new->op->option=6;
+                new->op->option=opt;
                 new->op->argc=dim;
                 new->op->args=(char**)malloc(dim*sizeof(char*)); 
                 if(!new->op->args){
@@ -493,8 +493,6 @@ int main(int argc,char** argv){
     }
 
     print_command_list(command_list);
-    Execute_Requests(command_list);
-    //goto exit;
     
     struct timespec a;
     a.tv_sec=15;
@@ -507,23 +505,36 @@ int main(int argc,char** argv){
             goto exit;
     }
 
+    Execute_Requests(command_list);
+
+
     printf("\n-----OPENFILE GREENPASS.PDF-----\n");
-    openFile("File di prova/greenpass.pdf\0",1,1);
+    openFile("File_di_prova/greenpass.pdf\0",1,1);
     sleep(1);
     printf("\n-----WRITEFILE GREENPASS.PDF-----\n");
-    writeFile("File di prova/greenpass.pdf\0","Espulsi");
+    writeFile("File_di_prova/greenpass.pdf\0","Espulsi");
     sleep(1);
     printf("\n-----LEGGO -1 FILE-----\n");
-    read_dir="File Letti\0";
-    readNFiles(-1,"File Letti");
+    read_dir="File_Letti\0";
+    readNFiles(-1,"File_Letti");
     sleep(1);
     printf("\n-----READ FILE GREENPASS.PDF-----\n");
-    readFile("File di prova/greenpass.pdf\0",NULL,NULL);
+    readFile("File_di_prova/greenpass.pdf\0",NULL,NULL);
     sleep(1);
-    closeConnection(socketname);
-
+    
+    if(socketname){
+        if(closeConnection(socketname)==-1){
+            IF_PRINT_ENABLED(fprintf(stderr,"Errore in chiusura di connessione con %s\n",socketname););
+        }
+    }else{
+        if(closeConnection(SOCKNAME)==-1){
+            IF_PRINT_ENABLED(fprintf(stderr,"Errore in chiusura di connessione con %s\n",SOCKNAME););
+        }
+    }
+        
     exit:
         list_destroy(command_list);
+        print_name_list(opened_files);
         free_name_list(opened_files);
         if(!error)
             return EXIT_SUCCESS;
@@ -537,6 +548,16 @@ void Execute_Requests(operation_node* request_list){
         //Ritardo artificiale tra le operazione
         sleep(delay);
 
+        //DEBUG
+        printf("Op Estratta -> %c Argc %d Args ",curr->op->option,curr->op->argc);
+        int w;
+        for(w=0;w<curr->op->argc;w++){
+            printf("%s ",curr->op->args[w]);
+        }
+        if(w==0)
+            printf(" (None)\n");
+        printf("\n\n");
+        
         //Operazione del nodo corrente
         if(curr->op->option=='W'){ //Operazione di scrittura di una lista di file
             for(int i=0;i<curr->op->argc;i++){ //Scorriamo i file da scrivere sul file storage
@@ -545,6 +566,9 @@ void Execute_Requests(operation_node* request_list){
                     if(openFile(curr->op->args[i],1,1)!=0){
                         fprintf(stderr,"Errore nella OpenFile\n");
                         ok_open=0;
+                    }else{
+                        printf("Inserisco in lista %s\n",curr->op->args[i]);
+                        list_insert_name(&opened_files,curr->op->args[i]);
                     }
                 }
 
@@ -628,5 +652,6 @@ void Execute_Requests(operation_node* request_list){
                 }
             }
         }
+        curr=curr->next;
     }
 }

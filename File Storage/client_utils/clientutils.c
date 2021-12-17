@@ -79,7 +79,7 @@ void list_destroy(operation_node* head){
     while(curr != NULL){
         tmp=curr->next;
         for(int i=0;i<curr->op->argc;i++){
-            printf("\telimino %s\n",curr->op->args[i]);
+            //printf("\telimino %s\n",curr->op->args[i]);
             free(curr->op->args[i]);
         }
         //le stringhe sono allocate sullo stack
@@ -108,6 +108,16 @@ void print_command_list(operation_node* head){
     }
 }
 
+void print_name_list(file_name* head){
+    printf("---Name List---\n");
+    file_name* curr=head;
+    while (curr){
+        printf("%s -> ",curr->name);
+        curr=curr->next;
+    }
+    printf("NULL\n");
+}
+
 int list_insert_name(file_name** head,char* name){
     if(!name)    
         return -1;
@@ -115,13 +125,17 @@ int list_insert_name(file_name** head,char* name){
     if(!to_insert)
         return -1;
     to_insert->next=(*head);
+    to_insert->name=strdup(name);
     (*head)=to_insert;
+    printf("###################Ho inserito un nome %s\n",name);
     return EXIT_SUCCESS;
 }
 
 int is_file_name_in_list(file_name* head,char* name){
+    printf("Nome da cercare %s\n",name);
     file_name* curr=head;
     while(curr){
+        printf("Confronto con %s\n",curr->name);
         if(strcmp(curr->name,name)==0)
             return 1;
         curr=curr->next;
