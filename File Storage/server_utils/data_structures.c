@@ -371,3 +371,43 @@ int list_push_terminators(Node** head_ref,int n_workers){
     return 0;
 }
 
+int list_push_terminators_end(Node** head_ref,int n_workers){
+    printf("[WORKER %ld-ListPushTerminatorsEnd] Inizio procedura\n",pthread_self());
+    list_print(*head_ref);
+    //Lock acquire
+    pthread_mutex_lock(&mutex_list);
+    printf("[WORKER %ld-ListPushTerminator] lock preso\n",pthread_self());
+    //Scorro la lista per aggiungere alla fine
+    Node* corr=(*head_ref);
+    if((*head_ref)!=NULL){
+        while (corr->next){
+            corr=corr->next;
+        }
+        for(int i=0;i<n_workers;i++){
+            Node* terminator=(Node*)malloc(sizeof(Node));
+            if(terminator==NULL)
+                return -1;
+            corr->next=terminator;
+            terminator->data=-1;
+            terminator->next=NULL; 
+            corr=corr->next; 
+        }
+        printf("[WORKER %ld-ListPushTerminator] inseriti %d terminatori in fondo\n",pthread_self(),n_workers);
+    }else{
+        for(int i=0;i<n_workers;i++){
+            Node* terminator=(Node*)malloc(sizeof(Node));
+            if(terminator==NULL)
+                return -1;
+            terminator->data=-1;
+            terminator->next=(*head_ref); 
+            (*head_ref)=terminator; 
+        }
+        printf("[WORKER %ld-ListPushTerminator] inseriti %d terminatori in testa\n",pthread_self(),n_workers);
+    }
+    list_print(*head_ref);
+    pthread_cond_signal(&list_not_empty);
+    pthread_mutex_unlock(&mutex_list);
+    printf("[WORKER %ld-ListPushTerminator] signal & unlock fatte, esco\n",pthread_self());
+    return 0;
+}
+

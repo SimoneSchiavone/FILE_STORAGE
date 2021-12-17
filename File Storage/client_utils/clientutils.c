@@ -36,12 +36,12 @@ void PrintAcceptedOptions(){
 }
 
 int Count_Commas(char* str){
-    printf("Optarg %s\n",str);
+    //printf("Optarg %s\n",str);
     int c=0;
     for(int i=0;i<strlen(str);i++){
-        printf("Analizzo %c\n",str[i]);
+        //printf("Analizzo %c\n",str[i]);
         if(str[i]==','){
-            printf("Trovata una virgola\n");
+            //printf("Trovata una virgola\n");
             c++;
         }
     }
@@ -127,7 +127,6 @@ int list_insert_name(file_name** head,char* name){
     to_insert->next=(*head);
     to_insert->name=strdup(name);
     (*head)=to_insert;
-    printf("###################Ho inserito un nome %s\n",name);
     return EXIT_SUCCESS;
 }
 

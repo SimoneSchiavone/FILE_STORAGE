@@ -68,4 +68,5 @@ int list_push_terminators(Node** head_ref,int nr_workers);
 int list_pop(Node** head_ref);
 void list_destroy(struct Node* head_ref);
 void list_print(struct Node*);
+int list_push_terminators_end(Node** head_ref,int nr_workers);
 #endif 

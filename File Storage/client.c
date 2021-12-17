@@ -507,7 +507,7 @@ int main(int argc,char** argv){
 
     Execute_Requests(command_list);
 
-
+    
     printf("\n-----OPENFILE GREENPASS.PDF-----\n");
     openFile("File_di_prova/greenpass.pdf\0",1,1);
     sleep(1);
@@ -520,7 +520,7 @@ int main(int argc,char** argv){
     sleep(1);
     printf("\n-----READ FILE GREENPASS.PDF-----\n");
     readFile("File_di_prova/greenpass.pdf\0",NULL,NULL);
-    sleep(1);
+    sleep(1);*/
     
     if(socketname){
         if(closeConnection(socketname)==-1){
@@ -544,9 +544,12 @@ int main(int argc,char** argv){
 
 void Execute_Requests(operation_node* request_list){
     operation_node* curr=request_list;
+    struct timespec ts;
+    ts.tv_sec=delay/1000;
+    ts.tv_nsec=(delay % 1000)*1000000;
     while(curr!=NULL){
         //Ritardo artificiale tra le operazione
-        sleep(delay);
+        nanosleep(&ts,NULL);
 
         //DEBUG
         printf("Op Estratta -> %c Argc %d Args ",curr->op->option,curr->op->argc);

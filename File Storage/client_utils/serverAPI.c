@@ -41,7 +41,16 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
         IF_PRINT_ENABLED(printf("[openConnection] Tentativo di connessione nr %d al socket %s\n",i,sockname););
         if((connect(fd_connection,(struct sockaddr*)&sa,sizeof(sa)))==0){
             IF_PRINT_ENABLED(printf("[openConnection] Connessione con FILE STORAGE correttamente stabilita mediante il socket %s!\n",sockname);)
-            return EXIT_SUCCESS;
+            int accepted,ctrl;
+            SYSCALL(ctrl,read(fd_connection,&accepted,sizeof(int)),"Errore nell'int di accettazione di connessione");
+            if(accepted){
+                IF_PRINT_ENABLED(printf("[openConnection] Il FILE STORAGE ha accettato la connessione!\n");)               
+                return EXIT_SUCCESS;
+            }else{
+                IF_PRINT_ENABLED(fprintf(stderr,"[openConnection] Il FILE STORAGE ha respinto la nostra richiesta di connessione!\n"););
+                return -1;
+            }
+            
         }    
         int timetosleep=msec*1000;
         usleep(timetosleep);
@@ -312,7 +321,7 @@ int readNFiles(int n, char* dirname){
                 free(content);
                 return -1;
             }
-            IF_PRINT_ENABLED(printf("[readNFiles] Ho scritto %d bytes nel file %s\n",(int)fwrite(content,sizeof(char),dim,read_file),pathname););
+            IF_PRINT_ENABLED(printf("[readNFiles] Ho scritto %d bytes nel file %s\n",(int)fwrite(content,sizeof(char),ctrl,read_file),pathname););
             if(fclose(read_file)==-1){
                 IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore in chiusura del file\n"););
                 free(pathname);

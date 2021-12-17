@@ -131,6 +131,7 @@ int main(){
             printf("SONO USCITO PRIMA LA SELECT\n");
             break;
         }
+
         pthread_mutex_unlock(&term_var);
 
         if(select(fd_max+1,&rdset,NULL,NULL,NULL)==-1){
@@ -165,11 +166,28 @@ int main(){
             if(FD_ISSET(i,&rdset)){ 
                 if(i==listen_fd){ //è una nuova richiesta di connessione! 
                     SYSCALL(connection_fd,accept(listen_fd,(struct sockaddr*)NULL,0),"Errore nella 'accept'");
+                    pthread_mutex_lock(&term_var);
+                    if(graceful_term){ //non posso accettare ulteriori connessioni
+                        int ok=0;
+                        SYSCALL(ctrl,write(connection_fd,&ok,sizeof(int)),"Errore in scrittura del bit di accettazione");
+                        printf("[MAIN] Respinta una connessione sul fd %d - Connessioni attive %d\n",connection_fd,active_connections);
+                        LOGFILEAPPEND("[MAIN] Respinta una connessione sul fd %d\n",connection_fd);
+                    }else{
+                        int ok=1;
+                        SYSCALL(ctrl,write(connection_fd,&ok,sizeof(int)),"Errore in scrittura del bit di accettazione");
+                        active_connections++;
+                        printf("[MAIN] Accettata una connessione sul fd %d - Connessioni attive %d\n",connection_fd,active_connections);
+                        LOGFILEAPPEND("[MAIN] Accettata una connessione sul fd %d\n",connection_fd);
+                        FD_SET(connection_fd,&set);
+                        MAX_FD(connection_fd);
+                    }
+                    pthread_mutex_unlock(&term_var);
+                    /*
                     active_connections++;
                     printf("[MAIN] Accettata una connessione sul fd %d - Connessioni attive %d\n",connection_fd,active_connections);
                     LOGFILEAPPEND("[MAIN] Accettata una connessione sul fd %d\n",connection_fd);
                     FD_SET(connection_fd,&set);
-                    MAX_FD(connection_fd);
+                    MAX_FD(connection_fd);*/
                 }else if (i==wtm_pipe[0]){ //è la pipe di comunicazione Worker to Manager che passa l'id del fd da reinserire in lista
                     int received_fd;
                     int byte_read;
@@ -185,6 +203,13 @@ int main(){
                             SYSCALL(e,close(received_fd),"Errore nella chiusura del fd restituito dal worker");
                             active_connections--;
                             printf("[MAIN] Chiusa la connessione sul fd %d - Connessioni attive %d\n",received_fd,active_connections);
+                            pthread_mutex_lock(&term_var);
+                            if(active_connections==0 && graceful_term){ //se non ho più connessioni attive e devo chiudere in modo graceful
+                                if(list_push_terminators(&queue,n_workers)==-1){
+                                    printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
+                                }
+                            }
+                            pthread_mutex_unlock(&term_var);
                         }else{
                             //pthread_cond_signal(&list_not_empty);
                         }
@@ -260,7 +285,7 @@ void* WorkerFun(void* p){
         int current_fd=list_pop(&queue);
         //printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
         if(current_fd==-1){ //Se estraggo -1 dalla coda devo terminare forzatamente
-            //printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
+            printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
             condition=0;
             pthread_cond_signal(&list_not_empty);
         }else{
@@ -315,8 +340,12 @@ void* SignalHandlerFun(void* arg){
             case SIGINT:{
                 printf("Ricevuto SIGINT -> Terminare il prima possibile\n");
                 fflush(stdout);
-                list_push_terminators(&queue,n_workers);
+                if(list_push_terminators(&queue,n_workers)==-1){
+                    printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
+                }
+                pthread_mutex_lock(&term_var);
                 forced_term=1;
+                pthread_mutex_unlock(&term_var);
                 condition=0;
                 break;
             }
@@ -325,7 +354,14 @@ void* SignalHandlerFun(void* arg){
                 fflush(stdout);
                 pthread_mutex_lock(&term_var);
                 graceful_term=1;
+                if(active_connections==0){
+                    printf("Non ci sono connessioni attive percio' chiudo il server\n");
+                    if(list_push_terminators_end(&queue,n_workers)==-1){
+                        printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
+                    }
+                }
                 pthread_mutex_unlock(&term_var);
+                condition=0;
                 break;
             }
             case SIGHUP:{
