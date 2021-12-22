@@ -1,40 +1,117 @@
 Creazione del file di log avvenuta con successo!
 --------------------
-Fri Dec 17 15:42:18 2021
+Wed Dec 22 21:17:31 2021
 Server acceso!
 --------------------
-Fri Dec 17 15:42:22 2021
+Wed Dec 22 21:17:33 2021
 [MAIN] Accettata una connessione sul fd 7
 --------------------
-Fri Dec 17 15:42:23 2021
-[WORKER 99055360] Ho ricevuto la seguente richiesta: 3
+Wed Dec 22 21:17:33 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:3
 --------------------
-Fri Dec 17 15:42:23 2021
-[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/minnie.txt e' stato creato, inserito nello storage e bloccato
+Wed Dec 22 21:17:33 2021
+[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/greenpass.pdf e' stato creato, inserito nello storage e bloccato
 --------------------
-Fri Dec 17 15:42:23 2021
-[WORKER 115840768] Ho ricevuto la seguente richiesta: 6
+Wed Dec 22 21:17:34 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:3
 --------------------
-Fri Dec 17 15:42:23 2021
-Occupazione dello storage: 226 bytes su 50000
+Wed Dec 22 21:17:34 2021
+[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt e' stato creato, inserito nello storage e bloccato
 --------------------
-Fri Dec 17 15:42:23 2021
-[Client 7] Sono stati scritti 226 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/minnie.txt
+Wed Dec 22 21:17:36 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:6
 --------------------
-Fri Dec 17 15:42:24 2021
-[WORKER 107448064] Ho ricevuto la seguente richiesta: 9
+Wed Dec 22 21:17:36 2021
+Occupazione dello storage: 46525 bytes su 1280000
 --------------------
-Fri Dec 17 15:42:24 2021
-[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/minnie.txt e' stato correttamente sbloccato
+Wed Dec 22 21:17:36 2021
+[Client 7] Sono stati scritti 46525 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/greenpass.pdf
 --------------------
-Fri Dec 17 15:42:25 2021
-[WORKER 99055360] Ho ricevuto la seguente richiesta: 12
+Wed Dec 22 21:17:37 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:6
 --------------------
-Fri Dec 17 15:43:06 2021
+Wed Dec 22 21:17:37 2021
+Occupazione dello storage: 47620 bytes su 1280000
+--------------------
+Wed Dec 22 21:17:37 2021
+[Client 7] Sono stati scritti 1095 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt
+--------------------
+Wed Dec 22 21:17:38 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:5
+--------------------
+Wed Dec 22 21:17:38 2021
+[Client 7] Sono stati letti con successo 1095 bytes del file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt
+--------------------
+Wed Dec 22 21:17:38 2021
+[Client 7] Sono stati letti con successo 46525 bytes del file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/greenpass.pdf
+--------------------
+Wed Dec 22 21:17:39 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:4
+--------------------
+Wed Dec 22 21:17:39 2021
+[Client 7] Sono stati letti con successo 46525 bytes del file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/greenpass.pdf
+--------------------
+Wed Dec 22 21:17:40 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:4
+--------------------
+Wed Dec 22 21:17:40 2021
+[Client 7] Sono stati letti con successo 1095 bytes del file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt
+--------------------
+Wed Dec 22 21:17:41 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:7
+--------------------
+Wed Dec 22 21:17:41 2021
+Occupazione dello storage: 47629 bytes su 1280000
+--------------------
+Wed Dec 22 21:17:41 2021
+[Client 7] Sono stati appesi 9 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt
+--------------------
+Wed Dec 22 21:17:42 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:9
+--------------------
+Wed Dec 22 21:17:42 2021
+[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt e' stato correttamente sbloccato
+--------------------
+Wed Dec 22 21:17:43 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:8
+--------------------
+Wed Dec 22 21:17:43 2021
+[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt e' stato correttamente bloccato
+--------------------
+Wed Dec 22 21:17:44 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:11
+--------------------
+Wed Dec 22 21:17:44 2021
+[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/topolino.txt e' stato correttamente rimosso dallo storage
+--------------------
+Wed Dec 22 21:17:45 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:11
+--------------------
+Wed Dec 22 21:17:45 2021
+[Client 7] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File Storage/File_di_prova/greenpass.pdf e' stato correttamente rimosso dallo storage
+--------------------
+Wed Dec 22 21:17:46 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:12
+--------------------
+Wed Dec 22 21:17:48 2021
 STATISTICHE FINALI
-Numero massimo di file memorizzati:1
-Dimensione massima raggiunta:226
-Numero attivazioni dell'algoritmo di rimpiazzamento 0
+Numero massimo di file memorizzati:2
+Dimensione massima raggiunta:47629
+Numero attivazioni dell'algoritmo di rimpiazzamento:0
+Numero massimo di connessioni contemporanee:1
 --------------------
-Fri Dec 17 15:43:06 2021
+Wed Dec 22 21:17:48 2021
 Server spento!

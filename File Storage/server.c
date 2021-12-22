@@ -38,7 +38,7 @@ int main(){
     int ctrl;
 
     //-----Messaggio di benvenuto-----
-    //Welcome();
+    Welcome();
 
     //-----Configurazione del server-----
     DefaultConfiguration();
@@ -82,7 +82,7 @@ int main(){
     sa.sun_family=AF_UNIX;
 
     SYSCALL(ctrl,bind(listen_fd,(struct sockaddr*)&sa,sizeof(sa)),"Errore nella 'bind'");
-    SYSCALL(ctrl,listen(listen_fd,max_connections),"Errore nella 'listen'");
+    SYSCALL(ctrl,listen(listen_fd,max_connections_bound),"Errore nella 'listen'");
 
     //-----Creazione threadpool-----
     threadpool=(pthread_t*)malloc(n_workers*sizeof(pthread_t));
@@ -117,6 +117,7 @@ int main(){
 
     terminated_workers=0;
     active_connections=0;
+    max_active_connections=0;
     pthread_mutex_init(&term_var,NULL);
 
     while(1){
@@ -124,26 +125,32 @@ int main(){
         //Copio il set nella variabile per la select
         rdset=set;
 
+        //printf("Da acquisire la lock 1\n");
         pthread_mutex_lock(&term_var);
-        //printf("Dopo select -> Terminated = %d\n",terminated);
+        //printf("Acquisita la lock 1\n");
+        //printf("Dopo select -> Terminated = %d\n",terminated_workers);
         if(terminated_workers==n_workers){
             pthread_mutex_unlock(&term_var);
-            printf("SONO USCITO PRIMA LA SELECT\n");
+            //printf("SONO USCITO PRIMA LA SELECT\n");
             break;
         }
-
         pthread_mutex_unlock(&term_var);
 
         if(select(fd_max+1,&rdset,NULL,NULL,NULL)==-1){
-            perror("Errore nella 'select'");
+            if(errno==EINTR){
+                printf("Interrotta la select");
+            }else
+                perror("Errore nella 'select'");
             goto exit;
         }
 
+        //printf("Da acquisire la lock 2\n");
         pthread_mutex_lock(&term_var);
-        //printf("Dopo select -> Terminated = %d\n",terminated);
+        //printf("acquisita la lock 2\n");
+        //printf("Dopo select -> Terminated = %d\n",terminated_workers);
         if(terminated_workers==n_workers){
             pthread_mutex_unlock(&term_var);
-            printf("SONO USCITO DOPO LA SELECT\n");
+            //printf("SONO USCITO DOPO LA SELECT\n");
             break;
         }
         pthread_mutex_unlock(&term_var);
@@ -176,6 +183,7 @@ int main(){
                         int ok=1;
                         SYSCALL(ctrl,write(connection_fd,&ok,sizeof(int)),"Errore in scrittura del bit di accettazione");
                         active_connections++;
+                        max_active_connections= (max_active_connections<active_connections) ? active_connections : max_active_connections;
                         printf("[MAIN] Accettata una connessione sul fd %d - Connessioni attive %d\n",connection_fd,active_connections);
                         LOGFILEAPPEND("[MAIN] Accettata una connessione sul fd %d\n",connection_fd);
                         FD_SET(connection_fd,&set);
@@ -248,17 +256,18 @@ int main(){
     list_destroy(queue);
 
     
-    printf("\n*****STATISTICHE DI CHIUSURA*****\n");
+    
     //Stampa dei file presenti nello storage al momento della chiusura
     printf("Storage al momento della terminazione:\n");
     hash_dump(stdout,storage,print_stored_file_info);
     CHECKRETURNVALUE(ctrl,DestroyStorage(),"Errore distruggendo lo storage",;);
     printf("Ho distrutto lo storage ed i file rimasti!\n");
     
+    printf("\n*****STATISTICHE DI CHIUSURA*****\n");
     max_data_num= (max_data_num == -1) ? 0 : max_data_num;
     max_data_size= (max_data_size == -1) ? 0 : max_data_size;
-    printf("Numero massimo di file memorizzati:%d\nDimensione massima raggiunta:%d\nNumero attivazioni dell'algoritmo di rimpiazzamento %d\n",max_data_num,max_data_size,nr_of_replacements);
-    LOGFILEAPPEND("STATISTICHE FINALI\nNumero massimo di file memorizzati:%d\nDimensione massima raggiunta:%d\nNumero attivazioni dell'algoritmo di rimpiazzamento %d\n",max_data_num,max_data_size,nr_of_replacements);
+    printf("Numero massimo di file memorizzati:%d\nDimensione massima raggiunta:%d\nNumero attivazioni dell'algoritmo di rimpiazzamento %d\nNumero massimo di connessioni contemporanee:%d\n",max_data_num,max_data_size,nr_of_replacements,max_active_connections);
+    LOGFILEAPPEND("STATISTICHE FINALI\nNumero massimo di file memorizzati:%d\nDimensione massima raggiunta:%d\nNumero attivazioni dell'algoritmo di rimpiazzamento:%d\nNumero massimo di connessioni contemporanee:%d\n",max_data_num,max_data_size,nr_of_replacements,max_active_connections);
     LOGFILEAPPEND("Server spento!\n");
     //Chiudiamo il file di log
     if(fclose(logfile)!=0){
@@ -291,7 +300,7 @@ void* WorkerFun(void* p){
         }else{
             int operation;
             SYSCALL(ctrl,read(current_fd,&operation,4),"Errore nella 'read' dell'operazione");
-            LOGFILEAPPEND("[WORKER %ld] Ho ricevuto la seguente richiesta: %d\n",pthread_self(),operation);
+            LOGFILEAPPEND("[WORKER-%ld]\nHo ricevuto la seguente richiesta:%d\n",pthread_self(),operation);
             printf("[WORKER %ld] Ho ricevuto la seguente richiesta: %d\n",pthread_self(),operation);
             op_return=ExecuteRequest(operation,current_fd);
             switch(op_return){
@@ -320,7 +329,7 @@ void* WorkerFun(void* p){
     //printf("[WORKER %ld] Sono terminato\n",pthread_self());
     pthread_mutex_lock(&term_var);
     terminated_workers++;
-    //printf("Ho variato terminated che ora e' %d\n",terminated_workers);
+    printf("Ho variato terminated che ora e' %d\n",terminated_workers);
     pthread_mutex_unlock(&term_var);
     fflush(stdout);
     //pthread_exit((void*)0);
@@ -379,7 +388,7 @@ void* SignalHandlerFun(void* arg){
 }
 
 void Welcome(){
-    system("clear");
+    //system("clear");
     printf(" ______ _____ _      ______    _____ _______ ____  _____            _____ ______ \n");
     printf("|  ____|_   _| |    |  ____|  / ____|__   __/ __ \\|  __ \\     /\\   / ____|  ____|\n");
     printf("| |__    | | | |    | |__    | (___    | | | |  | | |__) |   /  \\ | |  __| |__ \n");

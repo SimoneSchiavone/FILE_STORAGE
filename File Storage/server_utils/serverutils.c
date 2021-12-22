@@ -137,7 +137,7 @@ void DefaultConfiguration(){
     data_bound=2048;  //dimensione massima dei files in MBytes
     replacement_policy=0; //politica di rimpiazzamento FIFO di default
     memset(socket_name,'\0',128);
-    strncpy(socket_name,"./SocketFileStorage",20); //nome del socket AF_UNIX
+    strncpy(socket_name,"./SocketFileStorage.sock",25); //nome del socket AF_UNIX
     memset(logfilename,'\0',128);
     strncpy(logfilename,"./txt/logfile.txt",18); //nome del socket AF_UNIX
     logfile=NULL;
@@ -153,7 +153,7 @@ void DefaultConfiguration(){
         perror("Errore nell'inizializzazione del mutex");
         return;
     }
-    max_connections=5;
+    max_connections_bound=5;
     storage=NULL;
 }
 
@@ -465,10 +465,60 @@ int IsUnlocked(char* pathname){
     pthread_mutex_unlock(&found->mutex_file);
     return r;
 }*/
+response LockFile(char* pathname,int fd){
+    response r;
+    stored_file* found;
+
+    //Verifichiamo se il file e' gia' presente nello storage
+    pthread_mutex_lock(&mutex_storage);
+    found=(stored_file*)hash_find(storage,pathname);
+    pthread_mutex_unlock(&mutex_storage);
+
+    if(found==NULL){ //Il file non e' stato trovato
+        //Il file non e' stato trovato
+        fprintf(stderr,"Il file %s non e' stato trovato nello storage\n",pathname);
+        r.code=-1;
+        sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
+        LOGFILEAPPEND("[Client %d] Il file %s non e' stato trovato nello storage, non lo si puo' bloccare\n",pathname);
+        return r;
+    }else{
+        //Il file e' stato trovato
+        pthread_mutex_lock(&found->mutex_file);
+        found->clients_waiting++;
+        while(found->fd_holder!=-1 && found->to_delete==0){ 
+            //Finche' il file e' bloccato e non deve essere eliminato
+            printf("Client %d aspetta che il file si liberi!\n",fd);
+            pthread_cond_wait(&found->is_unlocked,&found->mutex_file); //aspetto che sia libero
+        }
+        found->clients_waiting--;
+        if(!found->to_delete){
+            found->fd_holder=fd;
+            r.code=0;
+            sprintf(r.message,"Il file %s e' ora bloccato dal fd %d",pathname,fd);
+            printf("Il file %s deve essere eliminato, non posso piu' bloccarlo\n",pathname);
+            LOGFILEAPPEND("[Client %d] Il file %s e' stato correttamente bloccato\n",fd,pathname);
+            gettimeofday(&found->last_operation,NULL); 
+            pthread_mutex_unlock(&found->mutex_file);
+            return r;
+        }else{
+            r.code=-1;
+            sprintf(r.message,"Il file %s deve essere eliminato, non lo si puo' bloccare",pathname);
+            LOGFILEAPPEND("[Client %d] Il file %s deve essere eliminato, non posso bloccarlo\n",fd,pathname);
+            //Avviso il proprietario che non sono piu' interessato a bloccare il file quindi puo' eliminarlo
+            printf("Avviso il proprietario che non voglio piu' bloccare il file %s\n",pathname);
+            pthread_cond_signal(&found->is_deletable);
+            pthread_mutex_unlock(&found->mutex_file);
+            return r;
+        }
+    }
+    
+}
 
 /*Richiesta di apertura o creazione di un file.*/
 response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
     response r;
+    r.code=0;
+
     printf("[FILE STORAGE-OpenFile] Il path ricevuto e' %s\n",pathname);
     if(!pathname){
         r.code=-1;
@@ -477,10 +527,10 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         return r;
     }
     
-    //Acquisisco il mutex sullo storage
-    pthread_mutex_lock(&mutex_storage);
-
     if(o_create){ //Il file va creato
+        //Acquisisco il mutex sullo storage
+        pthread_mutex_lock(&mutex_storage);
+
         //Verifichiamo che sia possibile creare un nuovo file nello storage (condizione sul nr max di file)
         if(!CanWeStoreAnotherFile()){
             r.code=-1;
@@ -569,7 +619,7 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
                 hash_dump(stdout,storage,print_stored_file_info);
 
                 r.code=0;
-                sprintf(r.message,"OK Il file %s e' stato inserito nello storage",id);
+                sprintf(r.message,"OK, Il file %s e' stato inserito nello storage",id);
                 if(o_lock){
                     LOGFILEAPPEND("[Client %d] Il file %s e' stato creato, inserito nello storage e bloccato\n",fd_owner,pathname);
                 }else{
@@ -577,18 +627,35 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
                 }
             }
         }
+        pthread_mutex_unlock(&mutex_storage);
     }else{ //Il file deve essere presente
+        /*
         stored_file* find=(stored_file*)hash_find(storage,pathname);
+        pthread_mutex_unlock(&mutex_storage);
         if(find==NULL){
             fprintf(stderr,"Il file %s non e' presente nello storage\n",pathname);
             r.code=-1;
             sprintf(r.message,"Il file %s non e' presente nello storage\n",pathname);
             LOGFILEAPPEND("[Client %d] Il file %s non e' presente nello storage\n",fd_owner,pathname);
+        }else{
+            if(o_lock){
+                pthread_mutex_lock(&find->mutex_file);
+                new_file->fd_holder=fd_owner; //Setto il proprietario
+             }else{
+                new_file->fd_holder=-1; //Non locked
+            }
+        }*/
+        if(o_lock){
+            response lock=LockFile(pathname,fd_owner);
+            if(lock.code!=0){
+                r.code=-1;
+                strcpy(r.message,lock.message);
+            }else{
+                r.code=0;
+                sprintf(r.message,"OK, il file %s e' stato bloccato",pathname);
+            }
         }
     }
-
-    //Rilascio il mutex sullo storage
-    pthread_mutex_unlock(&mutex_storage);
     return r;
 }
 
@@ -863,7 +930,7 @@ response ReadFile(char* pathname,stored_file** found,int fd){
             //Il file non e' vuoto
             r.code=0;
             sprintf(r.message,"OK, Il file %s e' stato trovato nello storage, ecco il contenuto",pathname);
-            LOGFILEAPPEND("[Client %d] Il file %s e' stato letto con successo\n",fd,pathname);
+            LOGFILEAPPEND("[Client %d] Sono stati letti con successo %d bytes del file %s\n",fd,(*found)->size,pathname);
             gettimeofday(&(*found)->last_operation,NULL); 
         }
     }
@@ -917,6 +984,7 @@ response ReadNFiles(int n,int fd){
                     SYSCALL(ctrl,write(fd,sf->content,(int)sf->size),"Errore nella 'write' della contenuto del file");
                     printf("Ho inviato al client %d bytes di contenuto cioe' %s\n",ctrl,sf->content);
                     gettimeofday(&sf->last_operation,NULL);
+                    LOGFILEAPPEND("[Client %d] Sono stati letti con successo %d bytes del file %s\n",fd,sf->size,id);
                 }
                 pthread_mutex_unlock(&sf->mutex_file);
             }
@@ -964,55 +1032,6 @@ response UnlockFile(char* pathname,int fd){
         pthread_mutex_unlock(&found->mutex_file);
     }
     return r;
-}
-
-response LockFile(char* pathname,int fd){
-    response r;
-    stored_file* found;
-
-    //Verifichiamo se il file e' gia' presente nello storage
-    pthread_mutex_lock(&mutex_storage);
-    found=(stored_file*)hash_find(storage,pathname);
-    pthread_mutex_unlock(&mutex_storage);
-
-    if(found==NULL){ //Il file non e' stato trovato
-        //Il file non e' stato trovato
-        fprintf(stderr,"Il file %s non e' stato trovato nello storage\n",pathname);
-        r.code=-1;
-        sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
-        LOGFILEAPPEND("[Client %d] Il file %s non e' stato trovato nello storage, non lo si puo' bloccare\n",pathname);
-        return r;
-    }else{
-        //Il file e' stato trovato
-        pthread_mutex_lock(&found->mutex_file);
-        found->clients_waiting++;
-        while(found->fd_holder!=-1 && found->to_delete==0){ 
-            //Finche' il file e' bloccato e non deve essere eliminato
-            printf("Client %d aspetta che il file si liberi!\n",fd);
-            pthread_cond_wait(&found->is_unlocked,&found->mutex_file); //aspetto che sia libero
-        }
-        found->clients_waiting--;
-        if(!found->to_delete){
-            found->fd_holder=fd;
-            r.code=0;
-            sprintf(r.message,"Il file %s e' ora bloccato dal fd %d",pathname,fd);
-            printf("Il file %s deve essere eliminato, non posso piu' bloccarlo\n",pathname);
-            LOGFILEAPPEND("[Client %d] Il file %s e' stato bloccato con successo\n",fd,pathname);
-            gettimeofday(&found->last_operation,NULL); 
-            pthread_mutex_unlock(&found->mutex_file);
-            return r;
-        }else{
-            r.code=-1;
-            sprintf(r.message,"Il file %s deve essere eliminato, non lo si puo' bloccare",pathname);
-            LOGFILEAPPEND("[Client %d] Il file %s deve essere eliminato, non posso bloccarlo\n",fd,pathname);
-            //Avviso il proprietario che non sono piu' interessato a bloccare il file quindi puo' eliminarlo
-            printf("Avviso il proprietario che non voglio piu' bloccare il file %s\n",pathname);
-            pthread_cond_signal(&found->is_deletable);
-            pthread_mutex_unlock(&found->mutex_file);
-            return r;
-        }
-    }
-    
 }
 
 int UnlockAllMyFiles(int fd){

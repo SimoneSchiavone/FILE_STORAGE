@@ -23,7 +23,7 @@ al server multithreaded.*/
 #include "client_utils/serverAPI.h"
 #include "client_utils/clientutils.h"
 
-#define SOCKNAME "./SocketFileStorage"
+#define SOCKNAME "./SocketFileStorage.sock"
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
 
 /*
@@ -505,22 +505,48 @@ int main(int argc,char** argv){
             goto exit;
     }
 
-    Execute_Requests(command_list);
+    //Execute_Requests(command_list);
 
-    
     printf("\n-----OPENFILE GREENPASS.PDF-----\n");
     openFile("File_di_prova/greenpass.pdf\0",1,1);
+    sleep(1);
+    printf("\n-----OPENFILE TOPOLINO.TXT-----\n");
+    openFile("File_di_prova/topolino.txt\0",1,1);
     sleep(1);
     printf("\n-----WRITEFILE GREENPASS.PDF-----\n");
     writeFile("File_di_prova/greenpass.pdf\0","Espulsi");
     sleep(1);
+    printf("\n-----WRITEFILE TOPOLINO.TXT-----\n");
+    writeFile("File_di_prova/topolino.txt\0","Espulsi");
+    sleep(1);
     printf("\n-----LEGGO -1 FILE-----\n");
-    read_dir="File_Letti\0";
     readNFiles(-1,"File_Letti");
     sleep(1);
     printf("\n-----READ FILE GREENPASS.PDF-----\n");
     readFile("File_di_prova/greenpass.pdf\0",NULL,NULL);
-    sleep(1);*/
+    sleep(1);
+    printf("\n-----READ FILE TOPOLINO.-----\n");
+    readFile("File_di_prova/topolino.txt\0",NULL,NULL);
+    sleep(1);
+    printf("\n-----APPEND TOPOLINO.-----\n");
+    char topo[]="topolino\0";
+    size_t b=9;
+    char* aux=strdup(topo);
+    appendToFile("File_di_prova/topolino.txt\0",aux,b,"Espulsi");
+    sleep(1);
+    printf("\n-----UNLOCK TOPOLINO.-----\n");
+    unlockFile("File_di_prova/topolino.txt\0");
+    sleep(1);
+    printf("\n-----LOCK TOPOLINO.-----\n");
+    lockFile("File_di_prova/topolino.txt\0");
+    sleep(1);
+    printf("\n-----REMOVE TOPOLINO.-----\n");
+    removeFile("File_di_prova/topolino.txt\0");
+    sleep(1);
+    printf("\n-----REMOVE GREENPASS-----\n");
+    removeFile("File_di_prova/greenpass.pdf\0");
+    sleep(1);
+
     
     if(socketname){
         if(closeConnection(socketname)==-1){
@@ -564,21 +590,58 @@ void Execute_Requests(operation_node* request_list){
         //Operazione del nodo corrente
         if(curr->op->option=='W'){ //Operazione di scrittura di una lista di file
             for(int i=0;i<curr->op->argc;i++){ //Scorriamo i file da scrivere sul file storage
-                int ok_open=1;
-                if(!is_file_name_in_list(opened_files,curr->op->args[i])){ //il file non e' gia' stato aperto
-                    if(openFile(curr->op->args[i],1,1)!=0){
-                        fprintf(stderr,"Errore nella OpenFile\n");
-                        ok_open=0;
+                if(!is_file_name_in_list(opened_files,curr->op->args[i])){ //il file non e' gia' stato aperto dal client
+                    printf("Il file non e' in lista, lo creo\n");
+                    if(openFile(curr->op->args[i],1,1)!=0){ //provo a creare il file nello storage
+                        printf("La creazione e' fallita, provo a fare la lock\n");
+                        if(openFile(curr->op->args[i],0,1)!=0){ 
+                            fprintf(stderr,"Operazione -w FALLITA\n");
+                        }else{ //il file e' gia' presente per caricamento da parte di altri utenti
+                            list_insert_name(&opened_files,curr->op->args[i]);
+                            if(writeFile(curr->op->args[i],backup_dir)!=0){ //provo a fare una write che termina con successo se il file non ha contenuto
+                                //Scansioniamo il contenuto del file da inviare e proviamo l'operazione append
+                                FILE* to_append;
+                                if((to_append=fopen(curr->op->args[i],"r"))!=NULL){
+                                    int ctrl;
+                                    struct stat st;
+                                    SYSCALL(ctrl,stat(curr->op->args[i], &st),"Errore nella 'stat'");
+                                    size_t size = (size_t)st.st_size;
+                                    int filedim=(int)size; 
+                                    char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
+                                    if(read_file!=NULL){
+                                        fread(read_file,sizeof(char),filedim,to_append);
+                                        read_file[filedim]='\0';
+                                    }   
+                                    fclose(to_append);
+                                    if(appendToFile(curr->op->args[i],read_file,size,backup_dir)!=0){
+                                        fprintf(stderr,"Operazione -w FALLITA\n");
+                                    }
+                                }
+                                
+                            }
+                        }
                     }else{
+                        printf("Il file e' stato correttamente creato e lockato\n");
                         printf("Inserisco in lista %s\n",curr->op->args[i]);
                         list_insert_name(&opened_files,curr->op->args[i]);
                     }
-                }
-
-                //WriteFile con cartella di backup se disponibile
-                if(ok_open){
-                    if(writeFile(curr->op->args[i],backup_dir)!=0){
-                        fprintf(stderr,"Errore nella writeFile\n");
+                }else{ //il file e' gia' scritto procedi con l'append
+                    FILE* to_append;
+                    if((to_append=fopen(curr->op->args[i],"r"))!=NULL){
+                        int ctrl;
+                        struct stat st;
+                        SYSCALL(ctrl,stat(curr->op->args[i], &st),"Errore nella 'stat'");
+                        size_t size = (size_t)st.st_size;
+                        int filedim=(int)size; 
+                        char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
+                        if(read_file!=NULL){
+                            fread(read_file,sizeof(char),filedim,to_append);
+                            read_file[filedim]='\0';
+                        }   
+                        fclose(to_append);
+                        if(appendToFile(curr->op->args[i],read_file,size,backup_dir)!=0){
+                            fprintf(stderr,"Operazione -w FALLITA\n");
+                        }
                     }
                 }
             }

@@ -109,8 +109,13 @@ int openFile(char* pathname,int o_create,int o_lock){
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
     IF_PRINT_ENABLED(printf("[openFile] %s\n",response););
-    free(response);
-    return EXIT_SUCCESS;
+    if(strncmp(response,"OK,",3)==0){
+        free(response);
+        return EXIT_SUCCESS;
+    }else{
+        free(response);
+        return -1;
+    }
 }
 
 char* extract_file_name(char* original_path){
@@ -674,7 +679,8 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
     SYSCALL(ctrl,write(fd_connection,&s,sizeof(int)),"Errore nella 'write' della dimensione (WriteFile)");
     SYSCALL(ctrl,write(fd_connection,buf,s),"Errore nella 'write' della dimensione");
     //printf("Ho scritto %d bytes\n",ctrl);
-
+    free(buf);
+    
     //Ciclo per l'acquisizione degli eventuali file espulsi
     if(dirname){ //Solo se l'utente ha specificato una directory per la memorizzazione dei file espulsi
         int flag=1;
