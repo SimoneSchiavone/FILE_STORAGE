@@ -35,6 +35,9 @@ int max_active_connections; //numero massimo di connessioni contemporanee attive
 typedef struct stored_file{
     char* content; //contenuto
     size_t size; //dimensione
+
+    Node* opened_by; //lista di client che hanno aperto il file
+    
     struct timeval creation_time; //tempo di creazione, necessario per la politica FIFO
     struct timeval last_operation; //tempo dell'ultima modifica
 

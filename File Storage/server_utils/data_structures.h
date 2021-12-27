@@ -63,10 +63,16 @@ typedef struct Node{
 typedef Node* IntLinkedList;
 pthread_mutex_t mutex_list;
 pthread_cond_t list_not_empty;
-int list_push(Node** head_ref, int new_data);
-int list_push_terminators(Node** head_ref,int nr_workers);
-int list_pop(Node** head_ref);
-void list_destroy(struct Node* head_ref);
+int concurrent_list_push(Node** head_ref, int new_data);
+int concurrent_list_push_terminators(Node** head_ref,int nr_workers);
+int concurrent_list_pop(Node** head_ref);
+int concurrent_list_push_terminators_end(Node** head_ref,int nr_workers);
+void concurrent_list_destroy(struct Node* head_ref);
+
 void list_print(struct Node*);
-int list_push_terminators_end(Node** head_ref,int nr_workers);
+
+void list_destroy(Node* head_ref);
+int is_in_list(Node* head_ref, int to_search);
+int list_remove(Node** head_ref, int to_remove);
+int list_push(Node** head_ref, int new_data);
 #endif 

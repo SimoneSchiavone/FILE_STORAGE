@@ -58,7 +58,7 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
         //printf("Actual %ld\n",(long)current.tv_sec);
         //printf("Current %ld Start %ld Difference %ld Tolerance %ld\n",current.tv_sec,start.tv_sec,current.tv_sec-start.tv_sec,abstime.tv_sec);
         if((current.tv_sec-start.tv_sec)>=abstime.tv_sec){
-            IF_PRINT_ENABLED(fprintf(stderr,"[openConnection] Tempo scaduto per la connessione! (un tentativi ogni %d msec per max %ld sec)\n",msec,abstime.tv_sec););
+            IF_PRINT_ENABLED(fprintf(stderr,"[openConnection] Tempo scaduto per la connessione! (un tentativo ogni %d msec per max %ld sec)\n",msec,abstime.tv_sec););
             return -1;
         }
         //fflush(stdout);
@@ -81,7 +81,7 @@ int closeConnection(const char* sockname){
     return EXIT_SUCCESS;
 }
 
-int openFile(char* pathname,int o_create,int o_lock){
+int openFile(const char* pathname,int o_create,int o_lock){
     //TODO Mettere const char...
     char* path=NULL;
     path=realpath(pathname,path);
@@ -132,15 +132,13 @@ char* extract_file_name(char* original_path){
     return extracted;
 }
 
-int readFile(char* pathname,void** buf,size_t* size){
-    /* TESTING
+int readFile(const char* pathname,void** buf,size_t* size){
     if(!pathname || !buf || !size){
         errno=EINVAL;
         perror("Errore parametri nulli");
         return -1;
-    }*/
+    }
 
-    //TODO Mettere const char...
     char* path=NULL;
     path=realpath(pathname,path);
     
@@ -162,25 +160,28 @@ int readFile(char* pathname,void** buf,size_t* size){
         free(path);
         return -1;
     }
+    free(path);
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
     //printf("[ReadFile]Ho ricevuto dal server %s\n",response);
     IF_PRINT_ENABLED(printf("[readFile] %s\n",response););
-    
     //Interpretazione della risposta ed eventuale lettura del contenuto
     //char ok[256];
     //sprintf(ok,"Il file %s e' stato trovato nello storage, ecco il contenuto",path);
-    free(path);
+    
     if(strncmp(response,"OK",2)==0){
         //Il file e' stato trovato nello storage, procedo alla lettura del contenuto    
         SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione del contenuto");
-        char* content=(char*)calloc(dim,sizeof(char));
-        if(content==NULL){
+        (*buf)=(char*)calloc(dim,sizeof(char));
+        if((*buf)==NULL){
             IF_PRINT_ENABLED(printf("[readFile] Errore nella lettura di %s\n",pathname););
             free(response);
             return -1;
         }
-        SYSCALL(ctrl,read(fd_connection,content,dim),"Errore nella 'read' del contenuto");
-        IF_PRINT_ENABLED(printf("[readFile] Contenuto di %s: dimensione %d bytes\n %s\n",pathname,dim,content););
+        SYSCALL(ctrl,read(fd_connection,(*buf),dim),"Errore nella 'read' del contenuto");
+        IF_PRINT_ENABLED(printf("[readFile] Contenuto di %s: dimensione %d bytes\n %s\n",pathname,dim,(char*)*buf););
+
+        //buf=(void**)&content;
+        *size=(size_t)dim;
 
         //Se e' stata specificata una cartella di memorizzazione scrivo il file
         if(read_dir){
@@ -213,25 +214,28 @@ int readFile(char* pathname,void** buf,size_t* size){
                 IF_PRINT_ENABLED(fprintf(stderr,"[readFile] Errore nell'apertura del file letto da memorizzare"););
                 free(save_pathname);
                 free(response);
-                free(content);
+                free(buf);
+                (*buf)=NULL;
                 return -1;
             }
             
             //printf("Ho aperto il file!\n");
-            int read_bytes=(int)fwrite(content,sizeof(char),ctrl,read_file);
+            int read_bytes=(int)fwrite((*buf),sizeof(char),ctrl,read_file);
             IF_PRINT_ENABLED(printf("[readFile] Ho scritto %d bytes di file letto\n",read_bytes););
             if(fclose(read_file)==-1){
                 IF_PRINT_ENABLED(fprintf(stderr,"[readFile] Errore nella chiusura del file"););
                 free(save_pathname);
                 free(response);
-                free(content);
+                free(buf);
+                (*buf)=NULL;
                 return -1;
             }
             if(closedir(destination)==-1){
                 IF_PRINT_ENABLED(fprintf(stderr,"[readFile] Errore nella chiusura della cartella"););
                 free(save_pathname);
                 free(response);
-                free(content);
+                free(buf);
+                (*buf)=NULL;
                 return -1;
             }
             chdir("..");
@@ -241,7 +245,7 @@ int readFile(char* pathname,void** buf,size_t* size){
             free(save_pathname);
         }
 
-        free(content);
+        //free(content);
         free(response);
         return EXIT_SUCCESS;
     }
@@ -271,28 +275,25 @@ int readNFiles(int n, char* dirname){
     //printf("Ho ricevuto dal server %d bytes di nr file %d\n",ctrl,nfiles);
 
     DIR* destination=NULL;
-    if(read_dir){
-            //Verifico che dirname sia effettivamente una cartella
+    //Verifico che dirname sia effettivamente una cartella
+    destination=opendir(read_dir);
+    if(!destination){
+        if(errno=ENOENT){ //Se la cartella non esiste la creo
+            mkdir(read_dir,0777);
             destination=opendir(read_dir);
+            IF_PRINT_ENABLED(printf("[readNFiles] Cartella per i file letti non trovata, la creo\n"););
             if(!destination){
-                if(errno=ENOENT){ //Se la cartella non esiste la creo
-                    mkdir(read_dir,0777);
-                    destination=opendir(read_dir);
-                    IF_PRINT_ENABLED(printf("[readNFiles] Cartella per i file letti non trovata, la creo\n"););
-                    if(!destination){
-                        IF_PRINT_ENABLED(fprintf(stderr,"Errore nell'apertura della cartella di destinazione dei file letti, i file letti non saranno memorizzati\n"););
-                    }
-                }
+                IF_PRINT_ENABLED(fprintf(stderr,"Errore nell'apertura della cartella di destinazione dei file letti, i file letti non saranno memorizzati\n"););
             }
-            //Vado nella cartella destinazione
-            chdir(read_dir);
-            char cwd[128];
-            getcwd(cwd,sizeof(cwd));
-            //printf("Sono nella cartella %s\n",cwd);
+        }
     }
+    //Vado nella cartella destinazione
+    chdir(read_dir);
+    char cwd[128];
+    getcwd(cwd,sizeof(cwd));
+
     //Ciclo di lettura di 'nfiles' files
     for(int i=0;i<nfiles;i++){
-        //printf("@@@@@GIRO %d@@@@@\n",i);
         int dim;
         //Leggo dimensione del pathname e pathname
         SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione del pathname");
@@ -306,7 +307,6 @@ int readNFiles(int n, char* dirname){
 
         //Leggo dimensione del contenuto
         SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione del contenuto");
-        //printf("Dimensione  ricevuta %d per %d\n",ctrl,dim);
         char* content=(char*)calloc(dim,sizeof(char));
         if(content==NULL){
             IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore malloc"););
@@ -316,39 +316,33 @@ int readNFiles(int n, char* dirname){
         SYSCALL(ctrl,read(fd_connection,content,dim),"Errore nella 'read' del contenuto");
         IF_PRINT_ENABLED(printf("[readNFiles] File %d -> Contenuto di %s di dimensione %d bytes\n %s\n",i+1,pathname,dim,content););
 
-        if(read_dir){
-            //Scrivo il nuovo file
-            pathname=extract_file_name(pathname);
-            FILE* read_file=fopen(pathname,"w");
-            if(!read_file){
-                IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore in apertura del file\n"););
-                free(pathname);
-                free(content);
-                return -1;
-            }
-            IF_PRINT_ENABLED(printf("[readNFiles] Ho scritto %d bytes nel file %s\n",(int)fwrite(content,sizeof(char),ctrl,read_file),pathname););
-            if(fclose(read_file)==-1){
-                IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore in chiusura del file\n"););
-                free(pathname);
-                free(content);
-                return -1;
-            }
+        //Scrivo il nuovo file
+        pathname=extract_file_name(pathname);
+        FILE* read_file=fopen(pathname,"w");
+        if(!read_file){
+            IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore in apertura del file\n"););
+            free(pathname);
+            free(content);
+            return -1;
         }
+        IF_PRINT_ENABLED(printf("[readNFiles] Ho scritto %d bytes nel file %s\n",(int)fwrite(content,sizeof(char),ctrl,read_file),pathname););
+        if(fclose(read_file)==-1){
+            IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore in chiusura del file\n"););
+            free(pathname);
+            free(content);
+            return -1;
+        }    
         free(pathname);
         free(content);
     }
     
-    if(read_dir){
-        if(closedir(destination)==-1){
-                IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore nella chiusura della cartella\n"););
-                return -1;
-        }
-        chdir("..");
-        char cwd[128];
-        memset(cwd,'\0',128);
-        getcwd(cwd,sizeof(cwd));
-        //printf("Sono nella cartella %s\n",cwd);
-    }   
+    if(closedir(destination)==-1){
+        IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore nella chiusura della cartella\n"););
+        return -1;
+    }
+    chdir("..");
+    memset(cwd,'\0',128);
+    getcwd(cwd,sizeof(cwd));   
     
     //Leggo la dimensione della risposta e la risposta
     int dim;
@@ -800,4 +794,37 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
         free(response);
         return 0;
     }
+}
+
+int closeFile(char* pathname){
+    if(!pathname){
+        errno=EINVAL;
+        IF_PRINT_ENABLED(fprintf(stderr,"[closeFile] Errore nella closeFile del file %s\n",pathname););
+        return -1;
+    }
+    
+    char* path=NULL;
+    path=realpath(pathname,path);
+
+    //Invio al server il codice comando
+    int op=10,ctrl,dim;
+    SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
+
+    //Invio pathname
+    int pathdim=strlen(path)+1;
+    SYSCALL(ctrl,write(fd_connection,&pathdim,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+    SYSCALL(ctrl,write(fd_connection,path,pathdim),"Errore nell'invio del pathname al server");
+    free(path);
+
+    //Leggo la dimensione della risposta e la risposta
+    SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
+    char* response=(char*)calloc(dim+1,sizeof(char));
+    if(response==NULL){
+        IF_PRINT_ENABLED(fprintf(stderr,"[closeFile] Errore nella unlockfile del file %s\n",pathname););
+        return -1;
+    }
+    SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
+    IF_PRINT_ENABLED(printf("%s\n",response););
+    free(response);
+    return EXIT_SUCCESS;
 }

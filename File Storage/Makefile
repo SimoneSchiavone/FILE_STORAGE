@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -Wall -pedantic-errors -Werror
+CFLAGS = -Wall -pedantic-errors -Werror -g
 PTHREADS = -lpthread
-.PHONY = clear all test1
+.PHONY = all clear test1 pippo
 
 client_modules = client_utils
 server_modules = server_utils

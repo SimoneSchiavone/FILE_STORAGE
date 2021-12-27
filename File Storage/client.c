@@ -41,14 +41,14 @@ static void signal_handler(int signum){
 }*/
 int error;
 int delay;
-file_name* opened_files;
+//file_name* opened_files;
 
 void Execute_Requests(operation_node* request_list);
 
 int main(int argc,char** argv){
     error=0,delay=0,w_or_W_to_do=0,print_options=0;
     backup_dir=NULL;
-    opened_files=NULL;
+    //opened_files=NULL;
 
     int ctrl;
     struct sigaction s;
@@ -69,47 +69,17 @@ int main(int argc,char** argv){
 
     //Parsing degli argomenti da linea di comando
     int opt;
-    while((opt=getopt(argc,argv,"hf:w:W:D:r:R:d:t:l:u:c:p"))!=-1){
+    while((opt=getopt(argc,argv,":phf:w:W:D:r:R:d:t:l:u:c:"))!=-1){
         switch (opt){
             case 'h':{ //Stampa opzioni accettate e termina
                 PrintAcceptedOptions();
                 goto exit;
-                /*
-                if(print_options){
-                    fprintf(stderr,"L'opzione -h non puo' essere ripetuto\n");
-                    goto exit;
-                }else{
-                    print_options=1;
-                }
-                //Nuovo nodo della lista  di comandi
-                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
-                if(!new){
-                    perror("Malloc new node");
-                    error=1;
-                    goto exit;
-                }
-                //Nuova operazione
-                new->op=(pending_operation*)malloc(sizeof(pending_operation));
-                if(!new->op){
-                    perror("Malloc new operation");
-                    free(new);
-                    error=1;
-                    goto exit;
-                }
-                //Preparazione operazione
-                new->op->option=0;
-                new->op->argc=0;
-                new->op->args=NULL;
-            
-                if(list_insert_operation_start(&command_list,new)==-1){
-                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
-                    free(new);
-                    free(new->op);
-                    goto exit;
-                }
-                break;*/
             }
             case 'f':{ //Imposta nome del socket AF_UNIX
+                if (optarg[0] == '-') {
+						fprintf(stderr, "Il comando -f necessita di un argomento.\n");
+						goto exit;
+				}
                 if(socketname==NULL){
                     socketname=optarg;
                     break;
@@ -120,6 +90,10 @@ int main(int argc,char** argv){
                 }
             }
             case 'w':{ //Invia al server 'n' file della cartella dirname
+                if (optarg[0] == '-') {
+						fprintf(stderr, "Il comando -w necessita di un argomento.\n");
+						goto exit;
+				}
                 char* tmp;
                 int c=1; //argc
                 char* directory=strtok_r(optarg,",",&tmp); //directory che contiene i file da inviare
@@ -183,6 +157,10 @@ int main(int argc,char** argv){
                 break;
             }
             case 'W':{ //Invia al server i file specificati
+                if (optarg[0] == '-') {
+						fprintf(stderr, "Il comando -W necessita di un argomento.\n");
+						goto exit;
+				}
                 char* tmp;
                 //conto le virgole della stringa per definire quanti argomenti sono stati passati
                 int dim=Count_Commas(optarg)+1; 
@@ -237,6 +215,10 @@ int main(int argc,char** argv){
                 break;
             }
             case 'D':{ //Specifica la cartella dove memorizzare i file espulsi per capacity misses
+                if (optarg[0] == '-') {
+						fprintf(stderr, "Il comando -D necessita di un argomento.\n");
+						goto exit;
+				}
                 if(!w_or_W_to_do){
                     fprintf(stderr,"E' stata specificata l'opzione -d senza aver prima specificato -w o -W!\n");
                     error=1;
@@ -246,6 +228,10 @@ int main(int argc,char** argv){
                 break;
             }
             case 'r':{ //Leggi dal server i file specificati
+                if (optarg[0] == '-') {
+						fprintf(stderr, "Il comando -R necessita di un argomento.\n");
+						goto exit;
+				}
                 char* tmp;
                 int dim=Count_Commas(optarg)+1;
 
@@ -297,13 +283,46 @@ int main(int argc,char** argv){
                 break;
             }
             case 'R':{ //Leggi 'n' file qualsiasi dal server, se n non e' specificato leggi tutti i file
-                //TODO: Da implementare
-                printf("Caso R con argomento\n");
-                printf("%s\n",optarg);
-                int n;
-                sscanf(optarg, "%d", &n);
-                    printf("%d\n",n);
-                                        
+                if(optarg!=NULL){
+                    printf("Caso R con argomento %s\n",optarg);
+                }
+                //Nuovo nodo della lista  di comandi
+                operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                if(!new){
+                    perror("Malloc new node");
+                    error=1;
+                    goto exit;
+                }
+                new->next=NULL;
+
+                //Nuova operazione
+                new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                if(!new->op){
+                    perror("Malloc new operation");
+                    free(new);
+                    error=1;
+                    goto exit;
+                }
+                
+                //Preparazione operazione
+                new->op->option=opt;
+                new->op->argc=1;
+                new->op->args=(char**)malloc(sizeof(char*)); 
+                if(!new->op->args){
+                    fprintf(stderr,"Errore nella malloc degli argomenti\n");
+                    free(new);
+                    free(new->op);
+                    error=-1;
+                    goto exit;
+                }     
+                new->op->args[0]=optarg;
+                if(list_insert_operation_end(&command_list,new)==-1){
+                    fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                    free(new);
+                    free(new->op);
+                    free(new->op->args);
+                    goto exit;
+                }     
                 break;
             }
             case 'd':{ //Specifica la cartella dove memorizzare i file letti dallo storage
@@ -428,7 +447,6 @@ int main(int argc,char** argv){
                     goto exit;
                 }
                 new->next=NULL;
-
                 //Nuova operazione
                 new->op=(pending_operation*)malloc(sizeof(pending_operation));
                 if(!new->op){
@@ -478,16 +496,45 @@ int main(int argc,char** argv){
                 break;
             }
             case ':':{
-                if(optopt=='R')
-                    printf("Caso R senza argomento\n");
+                if(optopt=='R'){ //Caso R senza argomento
+                    //Nuovo nodo della lista  di comandi
+                    operation_node* new=(operation_node*)malloc(sizeof(operation_node));
+                    if(!new){
+                        perror("Malloc new node");
+                        error=1;
+                        goto exit;
+                    }
+                    new->next=NULL;
+
+                    //Nuova operazione
+                    new->op=(pending_operation*)malloc(sizeof(pending_operation));
+                    if(!new->op){
+                        perror("Malloc new operation");
+                        free(new);
+                        error=1;
+                        goto exit;
+                    }
+                    
+                    //Preparazione operazione
+                    new->op->option=optopt;
+                    new->op->argc=0;
+                    new->op->args=NULL; 
+
+                    if(list_insert_operation_end(&command_list,new)==-1){
+                        fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
+                        free(new);
+                        free(new->op);
+                        goto exit;
+                    }
+                    break;
+                }else{
+                    printf("Argomento mancante per l'opzione -%c!\n",optopt);
+                    goto exit;
+                }
             }
             case '?':{
-                printf("Necessario argomento\n");
-                break;
-            }
-            default:{
-                printf("opzione sconosciuta\n");
-                break;
+                printf("Opzione -%c sconosciuta!\n",optopt);
+                goto exit;
             }
         }
     }
@@ -505,6 +552,7 @@ int main(int argc,char** argv){
             goto exit;
     }
 
+    print_command_list(command_list);
     //Execute_Requests(command_list);
 
     printf("\n-----OPENFILE GREENPASS.PDF-----\n");
@@ -522,12 +570,20 @@ int main(int argc,char** argv){
     printf("\n-----LEGGO -1 FILE-----\n");
     readNFiles(-1,"File_Letti");
     sleep(1);
+    #if 0
     printf("\n-----READ FILE GREENPASS.PDF-----\n");
-    readFile("File_di_prova/greenpass.pdf\0",NULL,NULL);
+    char* hey=NULL;
+    size_t w=0;
+    printf("prima la read ho che %p di dim %d\n",hey,(int)w);
+    readFile("File_di_prova/greenpass.pdf\0",(void**)&hey,&w);
+    printf("Dopo la read ho che %p di dim %d\n",hey,(int)w);
+    free(hey);
     sleep(1);
+    
     printf("\n-----READ FILE TOPOLINO.-----\n");
     readFile("File_di_prova/topolino.txt\0",NULL,NULL);
     sleep(1);
+    #endif
     printf("\n-----APPEND TOPOLINO.-----\n");
     char topo[]="topolino\0";
     size_t b=9;
@@ -560,8 +616,8 @@ int main(int argc,char** argv){
         
     exit:
         list_destroy(command_list);
-        print_name_list(opened_files);
-        free_name_list(opened_files);
+        //print_name_list(opened_files);
+        //free_name_list(opened_files);
         if(!error)
             return EXIT_SUCCESS;
         else
@@ -573,9 +629,8 @@ void Execute_Requests(operation_node* request_list){
     struct timespec ts;
     ts.tv_sec=delay/1000;
     ts.tv_nsec=(delay % 1000)*1000000;
-    while(curr!=NULL){
-        //Ritardo artificiale tra le operazione
-        nanosleep(&ts,NULL);
+    while(curr!=NULL){  
+        nanosleep(&ts,NULL); //Ritardo artificiale tra le operazione
 
         //DEBUG
         printf("Op Estratta -> %c Argc %d Args ",curr->op->option,curr->op->argc);
@@ -587,137 +642,247 @@ void Execute_Requests(operation_node* request_list){
             printf(" (None)\n");
         printf("\n\n");
         
-        //Operazione del nodo corrente
-        if(curr->op->option=='W'){ //Operazione di scrittura di una lista di file
+        //Operazione di scrittura di una lista di files
+        if(curr->op->option=='W'){
             for(int i=0;i<curr->op->argc;i++){ //Scorriamo i file da scrivere sul file storage
-                if(!is_file_name_in_list(opened_files,curr->op->args[i])){ //il file non e' gia' stato aperto dal client
-                    printf("Il file non e' in lista, lo creo\n");
-                    if(openFile(curr->op->args[i],1,1)!=0){ //provo a creare il file nello storage
-                        printf("La creazione e' fallita, provo a fare la lock\n");
-                        if(openFile(curr->op->args[i],0,1)!=0){ 
-                            fprintf(stderr,"Operazione -w FALLITA\n");
-                        }else{ //il file e' gia' presente per caricamento da parte di altri utenti
-                            list_insert_name(&opened_files,curr->op->args[i]);
-                            if(writeFile(curr->op->args[i],backup_dir)!=0){ //provo a fare una write che termina con successo se il file non ha contenuto
-                                //Scansioniamo il contenuto del file da inviare e proviamo l'operazione append
-                                FILE* to_append;
-                                if((to_append=fopen(curr->op->args[i],"r"))!=NULL){
-                                    int ctrl;
-                                    struct stat st;
-                                    SYSCALL(ctrl,stat(curr->op->args[i], &st),"Errore nella 'stat'");
-                                    size_t size = (size_t)st.st_size;
-                                    int filedim=(int)size; 
-                                    char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
-                                    if(read_file!=NULL){
-                                        fread(read_file,sizeof(char),filedim,to_append);
-                                        read_file[filedim]='\0';
-                                    }   
-                                    fclose(to_append);
-                                    if(appendToFile(curr->op->args[i],read_file,size,backup_dir)!=0){
-                                        fprintf(stderr,"Operazione -w FALLITA\n");
-                                    }
-                                }
-                                
-                            }
-                        }
-                    }else{
-                        printf("Il file e' stato correttamente creato e lockato\n");
-                        printf("Inserisco in lista %s\n",curr->op->args[i]);
-                        list_insert_name(&opened_files,curr->op->args[i]);
-                    }
-                }else{ //il file e' gia' scritto procedi con l'append
-                    FILE* to_append;
-                    if((to_append=fopen(curr->op->args[i],"r"))!=NULL){
-                        int ctrl;
-                        struct stat st;
-                        SYSCALL(ctrl,stat(curr->op->args[i], &st),"Errore nella 'stat'");
-                        size_t size = (size_t)st.st_size;
-                        int filedim=(int)size; 
-                        char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
-                        if(read_file!=NULL){
-                            fread(read_file,sizeof(char),filedim,to_append);
-                            read_file[filedim]='\0';
-                        }   
-                        fclose(to_append);
-                        if(appendToFile(curr->op->args[i],read_file,size,backup_dir)!=0){
-                            fprintf(stderr,"Operazione -w FALLITA\n");
-                        }
-                    }
+                int open_return=-1,write_return=-1;
+                if((open_return=openFile(curr->op->args[i],1,1))==-1){ //Open con la create
+                    open_return=openFile(curr->op->args[i],0,1); //Open con la lock
                 }
+                if(open_return==0){ //procediamo alla scrittura se una delle due aperture e' andata a buon fine
+                    if((write_return=writeFile(curr->op->args[i],backup_dir))==-1){ //se la Write non e' andata a buon fine provo a fare una append
+                        //Scansioniamo il contenuto del file da inviare e proviamo l'operazione append
+                        FILE* to_append;
+                        if((to_append=fopen(curr->op->args[i],"r"))!=NULL){
+                            int ctrl;
+                            struct stat st;
+                            SYSCALL(ctrl,stat(curr->op->args[i], &st),"Errore nella 'stat'");
+                            size_t size = (size_t)st.st_size;
+                            int filedim=(int)size; 
+                            char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
+                            if(read_file!=NULL){
+                                fread(read_file,sizeof(char),filedim,to_append);
+                                read_file[filedim]='\0';
+                            }   
+                            fclose(to_append);
+                            write_return=appendToFile(curr->op->args[i],read_file,size,backup_dir);
+                        }
+                    }     
+                }
+
+                //Stampa Esito
+                if(open_return==-1){ //fallimento open
+                    printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
+                }
+                if(write_return==-1){ //fallimento write|append
+                    printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
+                }
+                if(write_return==0){
+                    if(closeFile(curr->op->args[i])==0)
+                        printf("Operazione -w su %s COMPLETATA\n",curr->op->args[i]);
+                    else
+                        printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
+                } 
             }
         }
 
-
-        if(curr->op->option=='w'){ //Operazione di scrittura di "n" file della cartella
+        //Operazione di scrittura di "n" files della cartella
+        if(curr->op->option=='w'){ 
             file_name* to_send=NULL;
-            if(curr->op->argc==2){ //caso 'n' specificato
-                int w=strtol(curr->op->args[1],NULL,10);
-                if(w<0){
+            int num;
+            if(curr->op->argc==2){ //'n' specificato
+                num=(int)strtol(curr->op->args[1],NULL,10);
+                if(num<0){ //errore vado alla prossima operazione
                     fprintf(stderr,"Opzione -W con n<0 non consentita\n");
-                }else{
-                    //carico i nomi dei file da inviare
-                    if(curr->op->args[1]==0){
-                        if(files_in_directory(&to_send,curr->op->args[0])==-1){
-                            fprintf(stderr,"Errore nella lettura dei file da inviare\n");
+                    curr=curr->next;
+                    continue;
+
+                }
+            }else{
+                num=0;
+            }
+            //carico i nomi dei file da inviare nella lista to_send
+            if(num==0){
+                //invio tutti i file della directory
+                if(files_in_directory(&to_send,curr->op->args[0])==-1){
+                    fprintf(stderr,"Errore nella lettura dei file da inviare\n");
+                }
+            }else{
+                //invio al piu' 'w' che sono nella directory
+                if(n_files_in_directory(&to_send,curr->op->args[0],w)==-1){
+                    fprintf(stderr,"Errore nella lettura dei file da inviare");
+                }
+            }
+            //invio i file caricati nella lista al server
+            file_name* f=to_send;
+            while(f){
+                int open_return=-1,write_return=-1;
+                if((open_return=openFile(f->name,1,1))==-1){ //Open con la create
+                    open_return=openFile(f->name,0,1); //Open con la lock
+                }
+                if(open_return==0){ //procediamo alla scrittura se una delle due aperture e' andata a buon fine
+                    if((write_return=writeFile(f->name,backup_dir))==-1){ //se la Write non e' andata a buon fine provo a fare una append
+                        //Scansioniamo il contenuto del file da inviare e proviamo l'operazione append
+                        FILE* to_append;
+                        if((to_append=fopen(f->name,"r"))!=NULL){
+                            int ctrl;
+                            struct stat st;
+                            SYSCALL(ctrl,stat(f->name, &st),"Errore nella 'stat'");
+                            size_t size = (size_t)st.st_size;
+                            int filedim=(int)size; 
+                            char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
+                            if(read_file!=NULL){
+                                fread(read_file,sizeof(char),filedim,to_append);
+                                read_file[filedim]='\0';
+                            }   
+                            fclose(to_append);
+                            write_return=appendToFile(f->name,read_file,size,backup_dir);
                         }
-                    }else{
-                        int w=strtol(curr->op->args[1],NULL,10);
-                        if(n_files_in_directory(&to_send,curr->op->args[0],w)==-1){
-                            fprintf(stderr,"Errore nella lettura dei file da inviare");
-                        }
-                    }
-                    //invio i file al server
-                    file_name* f=to_send;
-                    while(f){
-                        int ok_open=1;
-                        if(!is_file_name_in_list(opened_files,f->name)){ //il file non e' gia' stato aperto
-                            if(openFile(f->name,1,1)!=0){
-                                fprintf(stderr,"Errore nella OpenFile\n");
-                                ok_open=0;
-                            }
-                        }
-                        if(ok_open){
-                            if(writeFile(f->name,backup_dir)==-1){
-                                fprintf(stderr,"Errore nella WriteFile di %s\n",f->name);
-                            }
-                        }
-                        f=f->next;
-                    }
-                    free_name_list(to_send);
+                    }     
+                }
+                //Stampa Esito
+                if(open_return==-1){ //fallimento open
+                    printf("Operazione -w su %s FALLITA\n",f->name);
+                }
+                if(write_return==-1){ //fallimento write|append
+                    printf("Operazione -w su %s FALLITA\n",f->name);
+                }
+                if(write_return==0){
+                    if(closeFile(f->name)==0)
+                        printf("Operazione -w su %s COMPLETATA\n",f->name);
+                    else
+                        printf("Operazione -w su %s FALLITA\n",f->name);
+                }
+                f=f->next;
+            }    
+            free_name_list(to_send);
+        }
+
+        //Operazione di lettura di una lista di files
+        if(curr->op->option=='r'){
+            for(int i=0;i<curr->op->argc;i++){
+                int read_return=-1;
+                int open_return=openFile(curr->op->args[i],0,0);
+                if(open_return==0){
+                    char* buf;
+                    size_t s;
+                    read_return=readFile(curr->op->args[i],(void**)&buf,&s);
+                    if(buf!=NULL)
+                        free(buf);
+                }
+
+                //Stampa Esito
+                if(open_return==-1){ //fallimento open
+                    printf("Operazione -r su %s FALLITA\n",curr->op->args[i]);
+                }
+                if(read_return==-1){ //fallimento write|append
+                    printf("Operazione -r su %s FALLITA\n",curr->op->args[i]);
+                }
+                if(read_return==0){
+                    if(closeFile(curr->op->args[i])==0)
+                        printf("Operazione -r su %s COMPLETATA\n",curr->op->args[i]);                
+                    else
+                        printf("Operazione -r su %s FALLITA\n",curr->op->args[i]); 
                 }
             }
         }
 
-        if(curr->op->option=='r'){ //Operazione di lettura di una lista di file
-            for(int i=0;i<curr->op->argc;i++){
-                // int ok_open=1; Va aperto??????????????????????????????????????
-                //if(readFile(curr->op->args[i],
+        //Operazione di lettura di 'n' files dallo storage
+        if(curr->op->option=='R'){
+            int read_n_return=-1;
+            if(curr->op->argc==0){
+                read_n_return=readNFiles(0,read_dir);
+                //Stampa Esito
+                if(read_n_return==0)
+                    printf("Operazione -R di tutto lo storage FALLITA\n");
+                else
+                    printf("Operazione -R di tutto lo storage COMPLETATA\n");
+            }else{
+                int num=(int)strtol(curr->op->args[0],NULL,10);
+                read_n_return=readNFiles(num,read_dir);
+                //Stampa Esito
+                if(read_n_return==0)
+                    printf("Operazione -R %d FALLITA\n",num);
+                else
+                    printf("Operazione -R %d COMPLETATA\n",num);
             }
+
         }
 
+        //Operazione di lock di una lista di files
         if(curr->op->option=='l'){
             for(int i=0;i<curr->op->argc;i++){
-                if(lockFile(curr->op->args[i])==-1){
-                    fprintf(stderr,"Errore nella lockFile\n");
+                int open_return=openFile(curr->op->args[i],0,0);
+                int lock_return=-1;
+                if(open_return==0){
+                    lock_return=lockFile(curr->op->args[i]);
+                }
+
+                //Stampa Esito
+                if(open_return==-1){
+                    printf("Operazione -l su %s FALLITA\n",curr->op->args[i]);
+                }else{
+                    if(lock_return==0){
+                        if(closeFile(curr->op->args[i])==0){
+                            printf("Operazione -l su %s COMPLETATA\n",curr->op->args[i]);
+                        }else{
+                            printf("Operazione -l su %s FALLITA\n",curr->op->args[i]);
+                        }
+                    }else{
+                        printf("Operazione -l su %s FALLITA\n",curr->op->args[i]);
+                    }
                 }
             }
         }
 
+        //Operazione di unlock di una lista di files
         if(curr->op->option=='u'){
             for(int i=0;i<curr->op->argc;i++){
-                if(unlockFile(curr->op->args[i])==-1){
-                    fprintf(stderr,"Errore nella lockFile\n");
+                int open_return=openFile(curr->op->args[i],0,0);
+                int unlock_return=-1;
+                if(open_return==0){
+                    unlock_return=unlockFile(curr->op->args[i]);
+                }
+
+                //Stampa Esito
+                if(open_return==-1){
+                    printf("Operazione -u su %s FALLITA\n",curr->op->args[i]);
+                }else{
+                    if(unlock_return==0){
+                        if(closeFile(curr->op->args[i])==0){
+                            printf("Operazione -u su %s COMPLETATA\n",curr->op->args[i]);
+                        }else{
+                            printf("Operazione -u su %s FALLITA\n",curr->op->args[i]);
+                        }
+                    }else{
+                        printf("Operazione -u su %s FALLITA\n",curr->op->args[i]);
+                    }
                 }
             }
         }
 
+        //Operazione di cancellazione di una lista di files
         if(curr->op->option=='c'){
             for(int i=0;i<curr->op->argc;i++){
-                if(unlockFile(curr->op->args[i])==-1){
-                    fprintf(stderr,"Errore nella lockFile\n");
+                int open_return=openFile(curr->op->args[i],0,0);
+                int cancel_return=-1;
+                if(open_return==0){
+                    cancel_return=removeFile(curr->op->args[i]);
+                }
+
+                //Stampa Esito
+                if(open_return==-1){
+                    printf("Operazione -c su %s FALLITA\n",curr->op->args[i]);
+                }else{
+                    if(cancel_return==0){
+                        printf("Operazione -c su %s COMPLETATA\n",curr->op->args[i]);
+                    }else{
+                        printf("Operazione -c su %s FALLITA\n",curr->op->args[i]);
+                    }
                 }
             }
         }
+
         curr=curr->next;
     }
 }

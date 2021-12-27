@@ -1,7 +1,6 @@
 #!/bin/bash
 chmod +x statistiche.sh
 LOGFILE=txt/logfile.txt
-clear
 echo "Script STATISTICHE.SH"
 if test -f "$LOGFILE"; then
 	echo "File di log standard $LOGFILE presente"

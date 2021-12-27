@@ -48,11 +48,27 @@ int Count_Commas(char* str){
     return c;
 }
 
+void print_command_list(operation_node* head){
+    printf("---Operation List---\n");
+    operation_node* curr=head;
+    int i=0;
+    while (curr){
+        printf("Comando nr %d\n\tOperazione %c\n\tArgc %d\n\tArgomenti:\n\t\t",i++,curr->op->option,curr->op->argc);
+        int w;
+        for(w=0;w<curr->op->argc;w++){
+            printf("%s\n\t\t",curr->op->args[w]);
+        }
+        if(w==0)
+            printf(" (None)\n");
+        printf("\n");
+        curr=curr->next;
+    }
+}
+
 int list_insert_operation_end(operation_node** head,operation_node* to_insert){
     if(!to_insert)    
         return -1;
     if(*head==NULL){
-        printf("Ho inserito fondo sulla lista vuota\n");
         *head=to_insert;
         return EXIT_SUCCESS;
     }
@@ -61,7 +77,6 @@ int list_insert_operation_end(operation_node** head,operation_node* to_insert){
         curr=curr->next;
     to_insert->next=NULL;
     curr->next=to_insert;
-    printf("Ho inserito in fondo\n");
     return EXIT_SUCCESS;
 }
 
@@ -88,23 +103,6 @@ void list_destroy(operation_node* head){
         free(curr->op);
         free(curr);
         curr=tmp;
-    }
-}
-
-void print_command_list(operation_node* head){
-    printf("---Operation List---\n");
-    operation_node* curr=head;
-    int i=0;
-    while (curr){
-        printf("Comando nr %d\nOperazione %c Argc %d\nArgomenti: ",i++,curr->op->option,curr->op->argc);
-        int w;
-        for(w=0;w<curr->op->argc;w++){
-            printf("%s ",curr->op->args[w]);
-        }
-        if(w==0)
-            printf(" (None)\n");
-        printf("\n\n");
-        curr=curr->next;
     }
 }
 

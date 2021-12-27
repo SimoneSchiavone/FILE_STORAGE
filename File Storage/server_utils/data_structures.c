@@ -285,7 +285,7 @@ int hash_dump(FILE* stream, hash_t* ht,void (print_data_info)(FILE*, void*)){
 /* Function to add a node at the beginning of Linked List. 
    This function expects a pointer to the data to be added 
    and size of the data type */
-int list_push(Node** head_ref, int new_data){ 
+int concurrent_list_push(Node** head_ref, int new_data){ 
     // Allocate memory for node 
     Node* new_node = (Node*)malloc(sizeof(Node)); 
     if(new_node==NULL){
@@ -304,7 +304,7 @@ int list_push(Node** head_ref, int new_data){
     return 0;
 } 
 
-void list_destroy(Node* head_ref){
+void concurrent_list_destroy(Node* head_ref){
     pthread_mutex_lock(&mutex_list);
     Node* curr=head_ref;
     Node* tmp;
@@ -316,7 +316,7 @@ void list_destroy(Node* head_ref){
     pthread_mutex_unlock(&mutex_list);
 }
 
-int list_pop(Node** head_ref){
+int concurrent_list_pop(Node** head_ref){
     //printf("[WORKER %ld-ListPop] Inizio procedura\n",pthread_self());
     pthread_mutex_lock(&mutex_list);
     //printf("[WORKER %ld-ListPop] lock preso\n",pthread_self());
@@ -349,7 +349,7 @@ void list_print(Node* head_ref){
     printf("NULL\n");
 }
 
-int list_push_terminators(Node** head_ref,int n_workers){
+int concurrent_list_push_terminators(Node** head_ref,int n_workers){
     printf("[WORKER %ld-ListPushTerminators] Inizio procedura\n",pthread_self());
     list_print(*head_ref);
     //Lock acquire
@@ -371,7 +371,7 @@ int list_push_terminators(Node** head_ref,int n_workers){
     return 0;
 }
 
-int list_push_terminators_end(Node** head_ref,int n_workers){
+int concurrent_list_push_terminators_end(Node** head_ref,int n_workers){
     printf("[WORKER %ld-ListPushTerminatorsEnd] Inizio procedura\n",pthread_self());
     list_print(*head_ref);
     //Lock acquire
@@ -411,3 +411,63 @@ int list_push_terminators_end(Node** head_ref,int n_workers){
     return 0;
 }
 
+int list_push(Node** head_ref, int new_data){ 
+    // Allocate memory for node 
+    Node* new_node = (Node*)malloc(sizeof(Node)); 
+    if(new_node==NULL){
+        perror("Errore nella 'malloc' del nuovo nodo della lista");
+        return -1;
+    }
+    //Preparation of the new node
+    new_node->data  = new_data; 
+    new_node->next = (*head_ref); 
+    
+    // Change head pointer as new node is added at the beginning ;
+    (*head_ref)    = new_node; 
+    return 0;
+}
+
+void list_destroy(Node* head_ref){
+    Node* curr=head_ref;
+    Node* tmp;
+    while(curr != NULL){
+        tmp=curr->next;
+        free(curr);
+        curr=tmp;
+    }
+}
+
+int is_in_list(Node* head_ref, int to_search){
+    Node* curr=head_ref;
+    while(curr){
+        if(curr->data==to_search){
+            printf("%d ha aperto il file\n",to_search);
+            return 1;
+        }else{
+            curr=curr->next;
+        }
+    }
+    return 0;
+}
+
+int list_remove(Node** head_ref, int to_remove){
+    Node* curr=(*head_ref);
+    Node* prec=NULL;
+    while(curr==NULL){
+        if(curr->data==to_remove){
+            if(prec==NULL){ //eliminazione in testa
+                (*head_ref)=curr->next;
+                free(curr);
+                return 1;
+            }else{
+                prec->next=curr->next;
+                free(curr);
+                return 1;
+            }
+        }else{
+            prec=curr;
+            curr=curr->next;
+        }
+    }
+    return 0;
+}

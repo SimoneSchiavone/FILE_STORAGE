@@ -213,7 +213,7 @@ int main(){
                             printf("[MAIN] Chiusa la connessione sul fd %d - Connessioni attive %d\n",received_fd,active_connections);
                             pthread_mutex_lock(&term_var);
                             if(active_connections==0 && graceful_term){ //se non ho più connessioni attive e devo chiudere in modo graceful
-                                if(list_push_terminators(&queue,n_workers)==-1){
+                                if(concurrent_list_push_terminators(&queue,n_workers)==-1){
                                     printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
                                 }
                             }
@@ -229,7 +229,7 @@ int main(){
                 }else{ //è un client pronto in lettura
                     int e;
                     printf("[MAIN] Il client sul fd %d è pronto in lettura\n",i);
-                    SYSCALL(e,list_push(&queue,i),"Errore nella 'list_push' di un fd");
+                    SYSCALL(e,concurrent_list_push(&queue,i),"Errore nella 'list_push' di un fd");
                     printf("[MAIN] Il client sul fd %d è stato inserito in coda\n",i);
                     FD_CLR(i,&set);
                 }
@@ -291,7 +291,7 @@ void* WorkerFun(void* p){
     while(condition){
         //Estraiamo un fd dalla coda
         //printf("[WORKER %ld] aspetto di estrarre qualcuno dalla coda\n",pthread_self());
-        int current_fd=list_pop(&queue);
+        int current_fd=concurrent_list_pop(&queue);
         //printf("[WORKER %ld] Ho estratto dalla coda il fd %d!\n",pthread_self(),current_fd);
         if(current_fd==-1){ //Se estraggo -1 dalla coda devo terminare forzatamente
             printf("[WORKER %ld] Ho estratto il fd %d perciò TERMINO\n",pthread_self(),current_fd);
@@ -346,10 +346,11 @@ void* SignalHandlerFun(void* arg){
         CHECKRETURNVALUE(ret,sigwait(set,&sig),"Errore nella 'sigwait' in SignalHandlerFun",return NULL);
 
         switch (sig){
+            case SIGQUIT:
             case SIGINT:{
                 printf("Ricevuto SIGINT -> Terminare il prima possibile\n");
                 fflush(stdout);
-                if(list_push_terminators(&queue,n_workers)==-1){
+                if(concurrent_list_push_terminators(&queue,n_workers)==-1){
                     printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
                 }
                 pthread_mutex_lock(&term_var);
@@ -358,23 +359,19 @@ void* SignalHandlerFun(void* arg){
                 condition=0;
                 break;
             }
-            case SIGQUIT:{
+            case SIGHUP:{
                 printf("Ricevuto SIGQUIT -> Terminare in modo graceful\n");
                 fflush(stdout);
                 pthread_mutex_lock(&term_var);
                 graceful_term=1;
                 if(active_connections==0){
                     printf("Non ci sono connessioni attive percio' chiudo il server\n");
-                    if(list_push_terminators_end(&queue,n_workers)==-1){
+                    if(concurrent_list_push_terminators_end(&queue,n_workers)==-1){
                         printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
                     }
                 }
                 pthread_mutex_unlock(&term_var);
                 condition=0;
-                break;
-            }
-            case SIGHUP:{
-                printf("PIPPO\n");
                 break;
             }
             default:
