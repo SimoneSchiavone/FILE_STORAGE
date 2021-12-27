@@ -49,7 +49,8 @@ int Count_Commas(char* str){
 }
 
 void print_command_list(operation_node* head){
-    printf("---Operation List---\n");
+    printf("----------\n");
+    printf("Operation List\n");
     operation_node* curr=head;
     int i=0;
     while (curr){
@@ -94,8 +95,8 @@ void list_destroy(operation_node* head){
     while(curr != NULL){
         tmp=curr->next;
         for(int i=0;i<curr->op->argc;i++){
-            //printf("\telimino %s\n",curr->op->args[i]);
-            free(curr->op->args[i]);
+            if(curr->op->args[i])
+                free(curr->op->args[i]);
         }
         //le stringhe sono allocate sullo stack
         if(curr->op->args)

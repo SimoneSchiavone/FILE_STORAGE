@@ -82,25 +82,30 @@ int closeConnection(const char* sockname){
 }
 
 int openFile(const char* pathname,int o_create,int o_lock){
-    //TODO Mettere const char...
     char* path=NULL;
     path=realpath(pathname,path);
-
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
     int op=3,dim=strlen(path)+1,ctrl;
     //Invio il codice comando
-    SYSCALL(ctrl,write(fd_connection,&op,4),"Errore nella 'write' del codice comando");
+    SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
     //Invio la dimensione di pathname
-    SYSCALL(ctrl,write(fd_connection,&dim,4),"Errore nella 'write' della dimensione del pathname");
+    SYSCALL(ctrl,write(fd_connection,&dim,sizeof(int)),"Errore nella 'write' della dimensione del pathname");
     //Invio la stringa pathname
     SYSCALL(ctrl,write(fd_connection,path,dim),"Errore nella 'write' di pathname");
     free(path);
     //Invio il flag O_CREATE
-    SYSCALL(ctrl,write(fd_connection,&o_create,4),"Errore nella 'write' di o_create");
+    int int_buf=o_create;
+    SYSCALL(ctrl,write(fd_connection,&int_buf,sizeof(int)),"Errore nella 'write' di o_create");
     //Invio il flag O_LOCK
-    SYSCALL(ctrl,write(fd_connection,&o_lock,4),"Errore nella 'write' di o_lock");
+    int_buf=o_lock;
+    SYSCALL(ctrl,write(fd_connection,&int_buf,sizeof(int)),"Errore nella 'write' di o_lock");
 
     //Attendo dimensione della risposta
-    SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione della risposta");
+    SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione della risposta");
     //printf("Dimensione della risposta: %d\n",dim);
     char* response=(char*)calloc(dim+1,sizeof(char));
     if(response==NULL){
@@ -109,6 +114,8 @@ int openFile(const char* pathname,int o_create,int o_lock){
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
     IF_PRINT_ENABLED(printf("[openFile] %s\n",response););
+
+    //Interpretazione risposta
     if(strncmp(response,"OK,",3)==0){
         free(response);
         return EXIT_SUCCESS;
@@ -141,7 +148,12 @@ int readFile(const char* pathname,void** buf,size_t* size){
 
     char* path=NULL;
     path=realpath(pathname,path);
-    
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
+
     int op=4,dim=strlen(path)+1,ctrl;
     //Invio il codice comando
     SYSCALL(ctrl,write(fd_connection,&op,4),"Errore nella 'write' del codice comando");
@@ -164,11 +176,9 @@ int readFile(const char* pathname,void** buf,size_t* size){
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
     //printf("[ReadFile]Ho ricevuto dal server %s\n",response);
     IF_PRINT_ENABLED(printf("[readFile] %s\n",response););
+
     //Interpretazione della risposta ed eventuale lettura del contenuto
-    //char ok[256];
-    //sprintf(ok,"Il file %s e' stato trovato nello storage, ecco il contenuto",path);
-    
-    if(strncmp(response,"OK",2)==0){
+    if(strncmp(response,"OK,",3)==0){
         //Il file e' stato trovato nello storage, procedo alla lettura del contenuto    
         SYSCALL(ctrl,read(fd_connection,&dim,4),"Errore nella 'read' della dimensione del contenuto");
         (*buf)=(char*)calloc(dim,sizeof(char));
@@ -264,15 +274,15 @@ int readNFiles(int n, char* dirname){
     //Invio al server il codice comando
     int op=5,ctrl;
     SYSCALL(ctrl,write(fd_connection,&op,sizeof(int)),"Errore nella 'write' del codice comando");
-    //printf("Ho inviato %d bytes di codice comando %d\n",ctrl,op);
+    printf("Ho inviato %d bytes di codice comando %d\n",ctrl,op);
     //Invio al server il numero di file che richiedo cioe' 'n'
     SYSCALL(ctrl,write(fd_connection,&n,sizeof(int)),"Errore nella 'write' di 'n' in readNFiles");
-    //printf("Ho inviato %d bytes di n %d\n",ctrl,n);
+    printf("Ho inviato %d bytes di n %d\n",ctrl,n);
 
     //Attendo dal server il numero di file che ricevero'
     int nfiles;
     SYSCALL(ctrl,read(fd_connection,&nfiles,sizeof(int)),"Errore nella 'write' del codice comando");
-    //printf("Ho ricevuto dal server %d bytes di nr file %d\n",ctrl,nfiles);
+    printf("Ho ricevuto dal server %d bytes di nr file %d\n",ctrl,nfiles);
 
     DIR* destination=NULL;
     //Verifico che dirname sia effettivamente una cartella
@@ -297,13 +307,13 @@ int readNFiles(int n, char* dirname){
         int dim;
         //Leggo dimensione del pathname e pathname
         SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione del pathname");
-        //printf("Dimensione del pathname ricevuta %d per %d\n",ctrl,dim);
         char* pathname=(char*)calloc(dim,sizeof(char));
         if(pathname==NULL){
             IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore malloc\n"););
             return -1;
         }
         SYSCALL(ctrl,read(fd_connection,pathname,dim),"Errore nella 'read' del pathname");
+        printf("Dimensione del pathname ricevuta %d per %s\n",dim,pathname);
 
         //Leggo dimensione del contenuto
         SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione del contenuto");
@@ -314,6 +324,7 @@ int readNFiles(int n, char* dirname){
             return -1;
         }
         SYSCALL(ctrl,read(fd_connection,content,dim),"Errore nella 'read' del contenuto");
+        printf("Dimensione del contenuto ricevuta %d per %d\n",ctrl,dim);
         IF_PRINT_ENABLED(printf("[readNFiles] File %d -> Contenuto di %s di dimensione %d bytes\n %s\n",i+1,pathname,dim,content););
 
         //Scrivo il nuovo file
@@ -369,6 +380,11 @@ int writeFile(char* pathname,char* dirname){
 
     char* path=NULL;
     path=realpath(pathname,path);
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
 
     //Apertura del file
     FILE* to_send;
@@ -429,7 +445,7 @@ int writeFile(char* pathname,char* dirname){
         //Attendo l'autorizzazione
         int authorized=-1;
         SYSCALL(ctrl,read(fd_connection,&authorized,sizeof(int)),"Errore nella ricezione del bit di autorizzazione");
-        //printf("Ho ricevuto il bit di autorizzazione %d\n",authorized);
+        printf("Ho ricevuto il bit di autorizzazione %d\n",authorized);
 
         if(!authorized){
             IF_PRINT_ENABLED(printf("[writeFile] Non sei autorizzato alla scrittura del file %s!\n",pathname););
@@ -521,6 +537,14 @@ int writeFile(char* pathname,char* dirname){
     }else{
         int flag=0;
         SYSCALL(ctrl,write(fd_connection,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
+        //Attendo l'autorizzazione
+        int authorized=-1;
+        SYSCALL(ctrl,read(fd_connection,&authorized,sizeof(int)),"Errore nella ricezione del bit di autorizzazione");
+        printf("Ho ricevuto il bit di autorizzazione %d\n",authorized);
+
+        if(!authorized){
+            IF_PRINT_ENABLED(printf("[writeFile] Non sei autorizzato alla scrittura del file %s!\n",pathname););
+        }
     }
    
     //Leggo dal server la dimensione della risposta
@@ -528,7 +552,7 @@ int writeFile(char* pathname,char* dirname){
         //printf("ASPETTO UNA RISPOSTA\n");
         int dim=256;
         SYSCALL(ctrl,read(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione della risposta");
-        //printf("Dimensione della risposta: %d\n",dim);
+        printf("Dimensione della risposta: %d Letti:%d\n",dim,ctrl);
 
         //Alloco un buffer per leggere la risposta del server
         char* response=(char*)calloc(dim+1,sizeof(char));
@@ -537,8 +561,14 @@ int writeFile(char* pathname,char* dirname){
         SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
         IF_PRINT_ENABLED(printf("[writeFile] %s\n",response););
 
-        free(response);
-        return EXIT_SUCCESS;
+        //Interpretazione risposta
+        if(strncmp(response,"OK,",3)==0){
+            free(response);
+            return EXIT_SUCCESS;
+        }else{
+            free(response);
+            return -1;
+        }
     }
 }
 
@@ -552,6 +582,11 @@ int lockFile(char* pathname){
 
     char* path=NULL;
     path=realpath(pathname,path);
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
 
     //Invio al server il codice comando
     int op=8,ctrl,dim;
@@ -571,9 +606,16 @@ int lockFile(char* pathname){
         return -1;
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    IF_PRINT_ENABLED(printf("%s\n",response););
-    free(response);
-    return EXIT_SUCCESS;
+    IF_PRINT_ENABLED(printf("[lockFile] %s\n",response););
+
+    //Interpretazione risposta
+    if(strncmp(response,"OK,",3)==0){
+        free(response);
+        return EXIT_SUCCESS;
+    }else{
+        free(response);
+        return -1;
+    }
 }
 
 int unlockFile(char* pathname){
@@ -585,6 +627,11 @@ int unlockFile(char* pathname){
     
     char* path=NULL;
     path=realpath(pathname,path);
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
 
     //Invio al server il codice comando
     int op=9,ctrl,dim;
@@ -604,9 +651,16 @@ int unlockFile(char* pathname){
         return -1;
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    IF_PRINT_ENABLED(printf("%s\n",response););
-    free(response);
-    return EXIT_SUCCESS;
+    IF_PRINT_ENABLED(printf("[unlockFile] %s\n",response););
+    
+    //Interpretazione risposta
+    if(strncmp(response,"OK,",3)==0){
+        free(response);
+        return EXIT_SUCCESS;
+    }else{
+        free(response);
+        return -1;
+    }
 }
 
 int removeFile(char* pathname){
@@ -618,6 +672,11 @@ int removeFile(char* pathname){
     
     char* path=NULL;
     path=realpath(pathname,path);
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
 
     //Invio al server il codice comando
     int op=11,ctrl,dim;
@@ -637,9 +696,16 @@ int removeFile(char* pathname){
         return -1;
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    IF_PRINT_ENABLED(printf("%s\n",response););
-    free(response);
-    return EXIT_SUCCESS;
+    IF_PRINT_ENABLED(printf("[removeFile] %s\n",response););
+
+    //Interpretazione risposta
+    if(strncmp(response,"OK,",3)==0){
+        free(response);
+        return EXIT_SUCCESS;
+    }else{
+        free(response);
+        return -1;
+    }
 }
 
 int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
@@ -650,12 +716,15 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
         return -1;
     }
 
-    /*  ATTENZIONE, NON BISOGNA APPENDERE UN FILE MA MI SOGNA APPENDERE SIZE BYTES DAL BUFFER PASSATO PER PARAMETRO
-    QUINDI RIVEDERE TUTTE QUESTE COSE INUTILI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
     int ctrl;
     
     char* path=NULL;
     path=realpath(pathname,path);
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
 
     //Invio al server il codice comando
     int op=7;
@@ -775,6 +844,16 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
     }else{
         int flag=0;
         SYSCALL(ctrl,write(fd_connection,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
+        //Attendo l'autorizzazione
+        int authorized=-1;
+        SYSCALL(ctrl,read(fd_connection,&authorized,sizeof(int)),"Errore nella ricezione del bit di autorizzazione");
+        printf("Ho ricevuto il bit di autorizzazione %d\n",authorized);
+
+        if(!authorized){
+            //printf("Non sei autorizzato alla scrittura del file %s!\n",pathname);
+            IF_PRINT_ENABLED(fprintf(stderr,"[appendToFile] Non sei autorizzato alla scrittura del file %s!\n",pathname););
+        }
+
     }
 
     read_2:{
@@ -789,10 +868,16 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
         if(response==NULL)
             return EXIT_FAILURE;
         SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-        IF_PRINT_ENABLED(fprintf(stderr,"[appendToFile] %s\n",response););
+        IF_PRINT_ENABLED(printf("[appendToFile] %s\n",response););
 
-        free(response);
-        return 0;
+        //Interpretazione risposta
+        if(strncmp(response,"OK,",3)==0){
+            free(response);
+            return EXIT_SUCCESS;
+        }else{
+            free(response);
+            return -1;
+        }
     }
 }
 
@@ -805,6 +890,11 @@ int closeFile(char* pathname){
     
     char* path=NULL;
     path=realpath(pathname,path);
+    if(path==NULL){
+        if(errno==ENOENT)
+            IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
+        return -1;
+    }
 
     //Invio al server il codice comando
     int op=10,ctrl,dim;
@@ -824,7 +914,14 @@ int closeFile(char* pathname){
         return -1;
     }
     SYSCALL(ctrl,read(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    IF_PRINT_ENABLED(printf("%s\n",response););
-    free(response);
-    return EXIT_SUCCESS;
+    IF_PRINT_ENABLED(printf("[closeFile] %s\n",response););
+
+    //Interpretazione risposta
+    if(strncmp(response,"OK,",3)==0){
+        free(response);
+        return EXIT_SUCCESS;
+    }else{
+        free(response);
+        return -1;
+    }
 }

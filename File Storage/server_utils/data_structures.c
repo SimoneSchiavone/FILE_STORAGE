@@ -441,7 +441,6 @@ int is_in_list(Node* head_ref, int to_search){
     Node* curr=head_ref;
     while(curr){
         if(curr->data==to_search){
-            printf("%d ha aperto il file\n",to_search);
             return 1;
         }else{
             curr=curr->next;
@@ -453,7 +452,7 @@ int is_in_list(Node* head_ref, int to_search){
 int list_remove(Node** head_ref, int to_remove){
     Node* curr=(*head_ref);
     Node* prec=NULL;
-    while(curr==NULL){
+    while(curr!=NULL){
         if(curr->data==to_remove){
             if(prec==NULL){ //eliminazione in testa
                 (*head_ref)=curr->next;

@@ -6,7 +6,7 @@ PTHREADS = -lpthread
 client_modules = client_utils
 server_modules = server_utils
 server_dependecies = $(server_modules)/data_structures.o $(server_modules)/serverutils.o server.c
-client_dependecies = $(client_modules)/clientutils.c $(client_modules)/FileStorageAPILib.a
+client_dependecies = $(client_modules)/clientutils.c $(client_modules)/FileStorageAPILib.a client.c
 
 all: server client
 
@@ -14,7 +14,7 @@ server: $(server_dependecies)
 	$(CC) $(CFLAGS) $^ -o $@ $(PTHREADS)
 
 client: $(client_dependecies)
-	$(CC) $(CFLAGS) $^ client.c -o $@ $(PTHREADS) -L ./$(client_modules) $(client_modules)/FileStorageAPILib.a
+	$(CC) $(CFLAGS) $^ -o $@ $(PTHREADS) -L ./$(client_modules) $(client_modules)/FileStorageAPILib.a
 
 $(client_modules)/FileStorageAPILib.a: $(client_modules)/serverAPI.o
 	ar rvs $@ $<

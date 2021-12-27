@@ -305,13 +305,13 @@ void* WorkerFun(void* p){
             op_return=ExecuteRequest(operation,current_fd);
             switch(op_return){
                 case 0:
-                    printf("[WORKER %ld] Operazione %d andata a buon fine\n",pthread_self(),operation);
+                    printf("[WORKER %ld] Operazione %d andata a buon fine\n\n\n",pthread_self(),operation);
                     break;
                 case 1:
-                    printf("[WORKER %ld] Operazione %d andata a buon fine, ESCO\n",pthread_self(),operation);
+                    printf("[WORKER %ld] Operazione %d andata a buon fine, ESCO\n\n\n",pthread_self(),operation);
                     break;
                 case -1:
-                    printf("[WORKER %ld] Operazione %d fallita\n",pthread_self(),operation);
+                    printf("[WORKER %ld] Operazione %d fallita\n\n",pthread_self(),operation);
                     break;
             }
         }
@@ -385,7 +385,6 @@ void* SignalHandlerFun(void* arg){
 }
 
 void Welcome(){
-    //system("clear");
     printf(" ______ _____ _      ______    _____ _______ ____  _____            _____ ______ \n");
     printf("|  ____|_   _| |    |  ____|  / ____|__   __/ __ \\|  __ \\     /\\   / ____|  ____|\n");
     printf("| |__    | | | |    | |__    | (___    | | | |  | | |__) |   /  \\ | |  __| |__ \n");

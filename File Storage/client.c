@@ -69,7 +69,7 @@ int main(int argc,char** argv){
 
     //Parsing degli argomenti da linea di comando
     int opt;
-    while((opt=getopt(argc,argv,":phf:w:W:D:r:R:d:t:l:u:c:"))!=-1){
+    while((opt=getopt(argc,argv,":phf:w:W:D:r:d:t:l:u:c:R:"))!=-1){
         switch (opt){
             case 'h':{ //Stampa opzioni accettate e termina
                 PrintAcceptedOptions();
@@ -284,7 +284,10 @@ int main(int argc,char** argv){
             }
             case 'R':{ //Leggi 'n' file qualsiasi dal server, se n non e' specificato leggi tutti i file
                 if(optarg!=NULL){
-                    printf("Caso R con argomento %s\n",optarg);
+                    IF_PRINT_ENABLED(printf("Caso R con argomento %s\n",optarg););
+                    if (optarg[0] == '-') {
+						printf("Ha preso come argomento il -\n");
+                    }
                 }
                 //Nuovo nodo della lista  di comandi
                 operation_node* new=(operation_node*)malloc(sizeof(operation_node));
@@ -491,7 +494,8 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
-                printf("#Stampe ABILITATE#\n");
+                printf("Stampe ABILITATE\n");
+                printf("----------\n");
                 print_options=1;
                 break;
             }
@@ -538,12 +542,10 @@ int main(int argc,char** argv){
             }
         }
     }
-
-    print_command_list(command_list);
     
     struct timespec a;
     a.tv_sec=15;
-
+    print_command_list(command_list);
     if(socketname==NULL){
         if(openConnection(SOCKNAME,5000,a)==-1)
             goto exit;
@@ -553,56 +555,7 @@ int main(int argc,char** argv){
     }
 
     print_command_list(command_list);
-    //Execute_Requests(command_list);
-
-    printf("\n-----OPENFILE GREENPASS.PDF-----\n");
-    openFile("File_di_prova/greenpass.pdf\0",1,1);
-    sleep(1);
-    printf("\n-----OPENFILE TOPOLINO.TXT-----\n");
-    openFile("File_di_prova/topolino.txt\0",1,1);
-    sleep(1);
-    printf("\n-----WRITEFILE GREENPASS.PDF-----\n");
-    writeFile("File_di_prova/greenpass.pdf\0","Espulsi");
-    sleep(1);
-    printf("\n-----WRITEFILE TOPOLINO.TXT-----\n");
-    writeFile("File_di_prova/topolino.txt\0","Espulsi");
-    sleep(1);
-    printf("\n-----LEGGO -1 FILE-----\n");
-    readNFiles(-1,"File_Letti");
-    sleep(1);
-    #if 0
-    printf("\n-----READ FILE GREENPASS.PDF-----\n");
-    char* hey=NULL;
-    size_t w=0;
-    printf("prima la read ho che %p di dim %d\n",hey,(int)w);
-    readFile("File_di_prova/greenpass.pdf\0",(void**)&hey,&w);
-    printf("Dopo la read ho che %p di dim %d\n",hey,(int)w);
-    free(hey);
-    sleep(1);
-    
-    printf("\n-----READ FILE TOPOLINO.-----\n");
-    readFile("File_di_prova/topolino.txt\0",NULL,NULL);
-    sleep(1);
-    #endif
-    printf("\n-----APPEND TOPOLINO.-----\n");
-    char topo[]="topolino\0";
-    size_t b=9;
-    char* aux=strdup(topo);
-    appendToFile("File_di_prova/topolino.txt\0",aux,b,"Espulsi");
-    sleep(1);
-    printf("\n-----UNLOCK TOPOLINO.-----\n");
-    unlockFile("File_di_prova/topolino.txt\0");
-    sleep(1);
-    printf("\n-----LOCK TOPOLINO.-----\n");
-    lockFile("File_di_prova/topolino.txt\0");
-    sleep(1);
-    printf("\n-----REMOVE TOPOLINO.-----\n");
-    removeFile("File_di_prova/topolino.txt\0");
-    sleep(1);
-    printf("\n-----REMOVE GREENPASS-----\n");
-    removeFile("File_di_prova/greenpass.pdf\0");
-    sleep(1);
-
+    Execute_Requests(command_list);
     
     if(socketname){
         if(closeConnection(socketname)==-1){
@@ -616,8 +569,6 @@ int main(int argc,char** argv){
         
     exit:
         list_destroy(command_list);
-        //print_name_list(opened_files);
-        //free_name_list(opened_files);
         if(!error)
             return EXIT_SUCCESS;
         else
@@ -633,14 +584,14 @@ void Execute_Requests(operation_node* request_list){
         nanosleep(&ts,NULL); //Ritardo artificiale tra le operazione
 
         //DEBUG
-        printf("Op Estratta -> %c Argc %d Args ",curr->op->option,curr->op->argc);
+        IF_PRINT_ENABLED(printf("\n----------\nOp Estratta -> %c Argc %d Args ",curr->op->option,curr->op->argc););
         int w;
         for(w=0;w<curr->op->argc;w++){
-            printf("%s ",curr->op->args[w]);
+            IF_PRINT_ENABLED(printf("%s ",curr->op->args[w]););
         }
         if(w==0)
-            printf(" (None)\n");
-        printf("\n\n");
+            IF_PRINT_ENABLED(printf(" (None)\n"););
+        IF_PRINT_ENABLED(printf("\n"););
         
         //Operazione di scrittura di una lista di files
         if(curr->op->option=='W'){
@@ -673,16 +624,18 @@ void Execute_Requests(operation_node* request_list){
                 //Stampa Esito
                 if(open_return==-1){ //fallimento open
                     printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
-                }
-                if(write_return==-1){ //fallimento write|append
-                    printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
-                }
-                if(write_return==0){
-                    if(closeFile(curr->op->args[i])==0)
-                        printf("Operazione -w su %s COMPLETATA\n",curr->op->args[i]);
-                    else
+                }else{
+                    if(write_return==-1){ //fallimento write|append
                         printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
-                } 
+                    }
+                    if(write_return==0){
+                        if(closeFile(curr->op->args[i])==0)
+                            printf("Operazione -w su %s COMPLETATA\n",curr->op->args[i]);
+                        else
+                            printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
+                    }
+                }
+                printf("----------\n");
             }
         }
 
@@ -743,15 +696,16 @@ void Execute_Requests(operation_node* request_list){
                 //Stampa Esito
                 if(open_return==-1){ //fallimento open
                     printf("Operazione -w su %s FALLITA\n",f->name);
-                }
-                if(write_return==-1){ //fallimento write|append
-                    printf("Operazione -w su %s FALLITA\n",f->name);
-                }
-                if(write_return==0){
-                    if(closeFile(f->name)==0)
-                        printf("Operazione -w su %s COMPLETATA\n",f->name);
-                    else
+                }else{
+                    if(write_return==-1){ //fallimento write|append
                         printf("Operazione -w su %s FALLITA\n",f->name);
+                    }
+                    if(write_return==0){
+                        if(closeFile(f->name)==0)
+                            printf("Operazione -w su %s COMPLETATA\n",f->name);
+                        else
+                            printf("Operazione -w su %s FALLITA\n",f->name);
+                    }
                 }
                 f=f->next;
             }    
@@ -774,16 +728,19 @@ void Execute_Requests(operation_node* request_list){
                 //Stampa Esito
                 if(open_return==-1){ //fallimento open
                     printf("Operazione -r su %s FALLITA\n",curr->op->args[i]);
+                }else{
+                    if(read_return==-1){ //fallimento write|append
+                        printf("Operazione -r su %s FALLITA\n",curr->op->args[i]);
+                    }else{
+                        if(read_return==0){
+                            if(closeFile(curr->op->args[i])==0)
+                                printf("Operazione -r su %s COMPLETATA\n",curr->op->args[i]);                
+                            else
+                                printf("Operazione -r su %s FALLITA\n",curr->op->args[i]); 
+                        }
+                    }
                 }
-                if(read_return==-1){ //fallimento write|append
-                    printf("Operazione -r su %s FALLITA\n",curr->op->args[i]);
-                }
-                if(read_return==0){
-                    if(closeFile(curr->op->args[i])==0)
-                        printf("Operazione -r su %s COMPLETATA\n",curr->op->args[i]);                
-                    else
-                        printf("Operazione -r su %s FALLITA\n",curr->op->args[i]); 
-                }
+                printf("----------\n");
             }
         }
 
@@ -799,6 +756,7 @@ void Execute_Requests(operation_node* request_list){
                     printf("Operazione -R di tutto lo storage COMPLETATA\n");
             }else{
                 int num=(int)strtol(curr->op->args[0],NULL,10);
+
                 read_n_return=readNFiles(num,read_dir);
                 //Stampa Esito
                 if(read_n_return==0)
@@ -832,6 +790,7 @@ void Execute_Requests(operation_node* request_list){
                         printf("Operazione -l su %s FALLITA\n",curr->op->args[i]);
                     }
                 }
+                printf("----------\n");
             }
         }
 
@@ -858,6 +817,7 @@ void Execute_Requests(operation_node* request_list){
                         printf("Operazione -u su %s FALLITA\n",curr->op->args[i]);
                     }
                 }
+                printf("----------\n");
             }
         }
 
@@ -880,6 +840,7 @@ void Execute_Requests(operation_node* request_list){
                         printf("Operazione -c su %s FALLITA\n",curr->op->args[i]);
                     }
                 }
+                printf("----------\n");
             }
         }
 
