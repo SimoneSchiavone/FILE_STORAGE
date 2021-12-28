@@ -139,6 +139,7 @@ int main(){
         if(select(fd_max+1,&rdset,NULL,NULL,NULL)==-1){
             if(errno==EINTR){
                 printf("Interrotta la select");
+                errno=0;
             }else
                 perror("Errore nella 'select'");
             goto exit;

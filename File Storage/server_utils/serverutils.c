@@ -202,8 +202,7 @@ void free_stored_file(void* tf){
             free(to_free->content);
             not_empty_files_num--;
         }
-        if(to_free->opened_by)
-            list_destroy(to_free->opened_by);
+        list_destroy(to_free->opened_by);
         free(to_free);
     }
 }
@@ -269,16 +268,20 @@ int FIFO_Replacement(int fd,int send_to_client,char* do_not_remove){
         //Invio il flag che indica che c'e' un file espulso da inviare al server
         int there_is_a_file_to_send=1,ctrl;
         SYSCALL(ctrl,write(fd,&there_is_a_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
-        printf("Ho inviato al client il flag 1 per segnalare che c'e' un file da inviargli\n");
+        printf("Debug, ho inviato al client il flag 1 per segnalare che c'e' un file da inviargli\n");
+
         //Invio il nome del file
         int name_size=strlen(victim_name)+1;
         SYSCALL(ctrl,write(fd,&name_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+        printf("Debug, ho inviato al client %d bytes di dimensione del nome del file espulso %d\n",ctrl,name_size);
         SYSCALL(ctrl,write(fd,victim_name,name_size),"Errore nell'invio del pathname al client");
-        printf("Ho inviato al client il nome del file\n");
+        printf("Debug, ho inviato al client %d bytes di nome del file espulso %s\n",ctrl,victim_name);
+
         //Invio il contenuto del file
         SYSCALL(ctrl,write(fd,&oldest_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+        printf("Debug, ho inviato al client %d bytes di dimensione del contenuto del file espulso %d\n",ctrl,oldest_size);
         SYSCALL(ctrl,write(fd,victim_content,oldest_size),"Errore nell'invio della dimensione del pathname");
-        printf("Ho inviato al client il contenuto del file con dimensione %d\n",oldest_size);
+        printf("Debug, ho inviato al client %d bytes di contenuto del file espulso %s\n",ctrl,victim_content);
     }
     
     int delete=hash_delete(storage,victim_name,NULL,free_stored_file);
@@ -462,6 +465,7 @@ response LockFile(char* pathname,int fd,int from_openFile){
         pthread_mutex_lock(&found->mutex_file);
     
         //Verifico che il client abbia aperto il file
+        //Se provengo dalla OpenFile tale controllo viene saltato
         if((!from_openFile) && !(is_in_list(found->opened_by,fd))){
             r.code=-1;
             sprintf(r.message,"Non hai aperto il file %s",pathname);
@@ -551,7 +555,11 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         new_file->clients_waiting=0; //Nessun client sta aspettando di acquisire questa lock
         new_file->to_delete=0; //Non e' in fase di eliminazione
         new_file->opened_by=NULL;
-        list_push(&new_file->opened_by,fd_owner);
+        if(list_push(&new_file->opened_by,fd_owner)==0){
+            printf("Inserimento corretto in lista\n");
+        }else{
+            printf("ERRORE IN INSERIMENTO IN LISTA");
+        }
 
         //Inizializzazione mutex e variabile di condizione
         pthread_mutex_init(&new_file->mutex_file,NULL);
@@ -575,8 +583,10 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         switch(insert){
             case 1:{ //null parameters
                 fprintf(stderr,"Parametri errati");
-                if(new_file)
+                if(new_file){
+                    list_destroy(new_file->opened_by);
                     free(new_file);
+                }
                 if(id)
                     free(id);
                 r.code=-1;
@@ -589,8 +599,10 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
                 r.code=-1;
                 sprintf(r.message,"Il file %s è gia' presente nello storage!",id);
                 LOGFILEAPPEND("[Client %d] Il file %s e' gia' presente nello storage!\n",fd_owner,pathname);
+                list_destroy(new_file->opened_by);
                 free(new_file);
                 free(id);
+
                 break;
             }
             case 3:{ //errore malloc nuovo nodo
@@ -598,6 +610,7 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
                 r.code=-1;
                 sprintf(r.message,"Errore nella malloc del nuovo file");
                 LOGFILEAPPEND("[Client %d] Errore nella OpenFile\n",fd_owner);
+                list_destroy(new_file->opened_by);
                 free(new_file);
                 free(id);
                 break;
@@ -645,15 +658,27 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         }*/
 
         if(o_lock){
-            response lock=LockFile(pathname,fd_owner,1);
-            if(lock.code!=0){
-                r.code=-1;
-                strcpy(r.message,lock.message);
-                return r;
-            }else{
-                r.code=0;
-                sprintf(r.message,"OK, il file %s e' stato bloccato",pathname);
-                return r;
+            pthread_mutex_lock(&mutex_storage);
+            stored_file* file=hash_find(storage,pathname);
+            pthread_mutex_unlock(&mutex_storage);
+            if(file){ //File trovato
+                response lock=LockFile(pathname,fd_owner,1);
+                if(lock.code!=0){
+                    r.code=-1;
+                    strcpy(r.message,lock.message);
+                    return r;
+                }else{
+                    pthread_mutex_lock(&file->mutex_file);
+                    if(list_push(&file->opened_by,fd_owner)==0){
+                        printf("Inserimento corretto in lista\n");
+                    }else{
+                        printf("ERRORE IN INSERIMENTO IN LISTA");
+                    }
+                    pthread_mutex_unlock(&file->mutex_file);
+                    r.code=0;
+                    sprintf(r.message,"OK, il file %s e' stato bloccato",pathname);
+                    return r;
+                }
             }
         }else{
             pthread_mutex_lock(&mutex_storage);
@@ -662,14 +687,19 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
 
             if(file){ //File trovato
                 pthread_mutex_lock(&file->mutex_file);
-                list_push(&file->opened_by,fd_owner);
+                if(list_push(&file->opened_by,fd_owner)==0){
+                    printf("Inserimento corretto in lista\n");
+                }else{
+                    printf("ERRORE IN INSERIMENTO IN LISTA");
+                }
                 pthread_mutex_unlock(&file->mutex_file);
-
                 r.code=0;
                 sprintf(r.message,"OK, il file %s e' stato aperto",pathname);
+                return r;
             }else{ //File non trovato
                 r.code=-1;
                 sprintf(r.message,"Il file %s non e' stato trovato nello storage",pathname);
+                return r;
             }
         }
         
@@ -763,8 +793,6 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
         SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
     }
 
-    
-
     //Faccio spazio nello storage
     if(StorageUpdateSize(storage,size,fd,send_to_client,pathname)==-1){
         r.code=-1;
@@ -835,8 +863,6 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
     }else{ //Il file esiste nello storage
         pthread_mutex_lock(&file->mutex_file);
 
-        
-
         //Verifichiamo l'autorizzazione (apertura del file e lock)
         int authorized=(file->fd_holder==fd && is_in_list(file->opened_by,fd)) ? 1 : 0;
         
@@ -871,7 +897,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
                 SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella scrittura della risposta");
                 return r; 
             }else{  
-                newdim=file->size+size-1;
+                newdim=((int)(file->size))+size-1;
                 //Verifico se lo storage puo' contenere il file
                 if(newdim>data_bound){
                     //Inserisco questo caso in modo che se un file ha una dimensione maggiore di quella
@@ -929,7 +955,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
     }
 
     file->content=strncat(new_content,content_to_append,size);
-    file->size=newdim;
+    file->size=(size_t)newdim;
     gettimeofday(&file->last_operation,NULL); 
     pthread_mutex_unlock(&file->mutex_file);
 
@@ -1105,7 +1131,7 @@ int UnlockAllMyFiles(int fd){
             if(curr->key){
                 stored_file* sf=(stored_file*)curr->data;
                 pthread_mutex_lock(&sf->mutex_file);
-                printf("File %s Proprietario %d\n",(char*)curr->key,sf->fd_holder);
+                //printf("File %s Proprietario %d\n",(char*)curr->key,sf->fd_holder);
                 if(sf->fd_holder==fd){
                     //Sono il proprietario del file
                     sf->fd_holder=-1; //annullo il flag
@@ -1221,7 +1247,7 @@ response closeFile(char* pathname,int fd){
     }
 
     pthread_mutex_lock(&found->mutex_file);
-    if(!list_remove(&found->opened_by,fd)){
+    if(list_remove(&found->opened_by,fd)==0){
         r.code=-1;
         sprintf(r.message,"Errore nella chiusura del file %s",pathname);
         LOGFILEAPPEND("[Client %d] Errore nella chiusura del file %s\n",fd,pathname);
@@ -1231,6 +1257,7 @@ response closeFile(char* pathname,int fd){
         LOGFILEAPPEND("[Client %d] Il file %s e' stato correttamente rimosso dallo storage\n",fd,pathname);
     }
     pthread_mutex_unlock(&found->mutex_file);
+    hash_dump(stdout,storage,print_stored_file_info);
     return r;
 }
 
@@ -1338,17 +1365,18 @@ int ExecuteRequest(int fun,int fd){
             int intbuffer,ctrl;
             //-----Lettura del pathname-----
             SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 6] Errore nella 'read' della dimensione del pathname");
+            printf("DEBUG, Ho ricevuto dal client %d bytes di dimensione pathname %d\n",ctrl,intbuffer);
             char* read_name=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del pathname
             if(read_name==NULL){
                 perror("Errore malloc buffer pathname");
                 return -1;
             }
             SYSCALL(ctrl,read(fd,read_name,intbuffer),"[EXECUTE REQUEST Case 6] Errore nella 'read' del pathname");
-            printf("Ho ricevuto il pathname %s\n",read_name);
+            printf("DEBUG, Ho ricevuto dal client %d bytes di pathname %s\n",ctrl,read_name);
 
             //-----Lettura del file-----
             SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 6] Errore nella 'read' della dimensione del file da leggere");
-            printf("Dimensione file %d\n",intbuffer);
+            printf("DEBUG, Ho ricevuto dal client %d bytes di dimensione del contenuto %d\n",ctrl,intbuffer);
             char* read_file=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del file
             if(read_file==NULL){
                 perror("Errore nella malloc del file ricevuto");
@@ -1356,13 +1384,12 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,read(fd,read_file,intbuffer),"[EXECUTE REQUEST] Errore nella 'read' del file da leggere");
-            printf("Ho ricevuto %d bytes\n",ctrl);
-            printf("Ho ricevuto: %s\n",read_file);
+            printf("DEBUG, Ho ricevuto dal client %d bytes di contenuto %s\n",ctrl,read_file);
             
             //-----Lettura del flag di invio degli eventuali file espulsi
             int flag;
             SYSCALL(ctrl,read(fd,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
-            printf("Ho ricevuto il flag %d\n",flag);
+            printf("DEBUG, Ho ricevuto dal client %d bytes di flag espulsione %d\n",ctrl,flag);
 
             //-----Esecuzione operazione
             response r=WriteFile(read_name,read_file,intbuffer,fd,flag);

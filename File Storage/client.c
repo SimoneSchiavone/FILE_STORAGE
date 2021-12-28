@@ -140,7 +140,8 @@ int main(int argc,char** argv){
                     free(new->op);
                     goto exit;
                 }
-                new->op->args[1]=strdup(number);
+                if(new->op->argc==2)
+                    new->op->args[1]=strdup(number);
                 new->op->args[0]=strdup(directory);
 
                 
@@ -577,14 +578,12 @@ int main(int argc,char** argv){
 
 void Execute_Requests(operation_node* request_list){
     operation_node* curr=request_list;
-    struct timespec ts;
-    ts.tv_sec=delay/1000;
-    ts.tv_nsec=(delay % 1000)*1000000;
+    
     while(curr!=NULL){  
-        nanosleep(&ts,NULL); //Ritardo artificiale tra le operazione
+        usleep(delay*1000); //Ritardo artificiale tra le operazione
 
         //DEBUG
-        IF_PRINT_ENABLED(printf("\n----------\nOp Estratta -> %c Argc %d Args ",curr->op->option,curr->op->argc););
+        IF_PRINT_ENABLED(printf("----------\nOp Estratta -> %c Argc %d Args ",curr->op->option,curr->op->argc););
         int w;
         for(w=0;w<curr->op->argc;w++){
             IF_PRINT_ENABLED(printf("%s ",curr->op->args[w]););
@@ -605,17 +604,16 @@ void Execute_Requests(operation_node* request_list){
                         //Scansioniamo il contenuto del file da inviare e proviamo l'operazione append
                         FILE* to_append;
                         if((to_append=fopen(curr->op->args[i],"r"))!=NULL){
-                            int ctrl;
-                            struct stat st;
-                            SYSCALL(ctrl,stat(curr->op->args[i], &st),"Errore nella 'stat'");
-                            size_t size = (size_t)st.st_size;
-                            int filedim=(int)size; 
+                            fseek(to_append,0,SEEK_END);
+                            int filedim=ftell(to_append);
                             char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
                             if(read_file!=NULL){
+                                fseek(to_append,0,0);
                                 fread(read_file,sizeof(char),filedim,to_append);
                                 read_file[filedim]='\0';
                             }   
                             fclose(to_append);
+                            size_t size=(size_t) (filedim+1);
                             write_return=appendToFile(curr->op->args[i],read_file,size,backup_dir);
                         }
                     }     
@@ -662,7 +660,7 @@ void Execute_Requests(operation_node* request_list){
                 }
             }else{
                 //invio al piu' 'w' che sono nella directory
-                if(n_files_in_directory(&to_send,curr->op->args[0],w)==-1){
+                if(n_files_in_directory(&to_send,curr->op->args[0],num)==-1){
                     fprintf(stderr,"Errore nella lettura dei file da inviare");
                 }
             }
@@ -678,13 +676,12 @@ void Execute_Requests(operation_node* request_list){
                         //Scansioniamo il contenuto del file da inviare e proviamo l'operazione append
                         FILE* to_append;
                         if((to_append=fopen(f->name,"r"))!=NULL){
-                            int ctrl;
-                            struct stat st;
-                            SYSCALL(ctrl,stat(f->name, &st),"Errore nella 'stat'");
-                            size_t size = (size_t)st.st_size;
-                            int filedim=(int)size; 
+                            fseek(to_append,0,SEEK_END);
+                            int filedim=ftell(to_append);
+                            size_t size=(size_t) (filedim+1);
                             char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
                             if(read_file!=NULL){
+                                fseek(to_append,0,0);
                                 fread(read_file,sizeof(char),filedim,to_append);
                                 read_file[filedim]='\0';
                             }   

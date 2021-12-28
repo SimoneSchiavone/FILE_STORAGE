@@ -423,7 +423,7 @@ int list_push(Node** head_ref, int new_data){
     new_node->next = (*head_ref); 
     
     // Change head pointer as new node is added at the beginning ;
-    (*head_ref)    = new_node; 
+    (*head_ref) = new_node; 
     return 0;
 }
 
