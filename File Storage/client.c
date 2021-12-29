@@ -26,34 +26,18 @@ al server multithreaded.*/
 #define SOCKNAME "./SocketFileStorage.sock"
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
 
-/*
-static void signal_handler(int signum){
-    switch (signum){
-        case SIGPIPE: {
-            write(1,"Errore fatale di comunicazione con il server",45);
-            abort();
-        }
-        default:{
-            abort();
-            break;
-        }
-    }
-}*/
 int error;
 int delay;
-//file_name* opened_files;
-
+int operation_check(operation_node* head);
 void Execute_Requests(operation_node* request_list);
 
 int main(int argc,char** argv){
-    error=0,delay=0,w_or_W_to_do=0,print_options=0;
+    error=0,delay=0,print_options=0;
     backup_dir=NULL;
-    //opened_files=NULL;
 
     int ctrl;
     struct sigaction s;
     memset(&s, 0, sizeof(s));
-    //s.sa_handler = signal_handler;
     s.sa_handler=SIG_IGN;
     sigset_t set;
     SYSCALL(ctrl,sigfillset(&set), "Errore nella sigfillset");
@@ -144,9 +128,6 @@ int main(int argc,char** argv){
                     new->op->args[1]=strdup(number);
                 new->op->args[0]=strdup(directory);
 
-                
-                w_or_W_to_do=1;
-
                 //Inserimento in fondo alla lista dei comandi
                 if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
@@ -204,8 +185,6 @@ int main(int argc,char** argv){
                     file=strtok_r(NULL,",",&tmp);
                 }
 
-                w_or_W_to_do=1;
-
                 if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
@@ -220,11 +199,6 @@ int main(int argc,char** argv){
 						fprintf(stderr, "Il comando -D necessita di un argomento.\n");
 						goto exit;
 				}
-                if(!w_or_W_to_do){
-                    fprintf(stderr,"E' stata specificata l'opzione -d senza aver prima specificato -w o -W!\n");
-                    error=1;
-                    goto exit;
-                }
                 backup_dir=optarg;
                 break;
             }
@@ -543,7 +517,9 @@ int main(int argc,char** argv){
             }
         }
     }
-    
+    if(operation_check(command_list)==-1)
+        goto exit;
+
     struct timespec a;
     a.tv_sec=15;
     print_command_list(command_list);
@@ -707,7 +683,7 @@ void Execute_Requests(operation_node* request_list){
                 f=f->next;
                 
             }    
-            free_name_list(to_send);
+            name_list_destroy(to_send);
         }
 
         //Operazione di lettura di una lista di files
@@ -844,4 +820,26 @@ void Execute_Requests(operation_node* request_list){
 
         curr=curr->next;
     }
+}
+
+int operation_check(operation_node* head){
+    operation_node* curr=head;
+    int found_write=0;
+    int found_read=0;
+    while(curr != NULL){
+        if((curr->op->option=='w')||(curr->op->option=='W'))
+            found_write=1;
+        if((curr->op->option=='r')||(curr->op->option=='R'))
+            found_read=1;
+        curr=curr->next;
+    }
+    if(!found_read && read_dir){
+        printf("Opzione -d specificata senza una -r o -R!\n");
+        return -1;
+    }
+    if(!found_write && backup_dir){
+        printf("Opzione -D specificata senza una -w o -W!\n");
+        return -1;
+    }
+    return 0;
 }

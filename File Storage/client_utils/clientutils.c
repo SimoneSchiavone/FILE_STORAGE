@@ -141,7 +141,7 @@ int is_file_name_in_list(file_name* head,char* name){
     return 0;
 }
 
-void free_name_list(file_name* head){
+void name_list_destroy(file_name* head){
     file_name* tmp=head;
     while(head){
         tmp=head;

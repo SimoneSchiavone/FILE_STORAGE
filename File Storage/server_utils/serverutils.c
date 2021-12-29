@@ -54,14 +54,13 @@ int ScanConfiguration(char* path){
     FILE* configfile=fopen(config_file_path,"r");
     if(configfile==NULL){
         perror("Errore durante l'apertura del file di configurazione");
-        exit(errno);
+        return -1;
     }
 
     char line[128];
     memset(line,'\0',128);
     //Leggiamo il file
     while(fgets(line,128,configfile)!=NULL){
-        printf("%s",line);
         
         //tokenizzazione della stringa
         char *tmpstr;
@@ -77,8 +76,7 @@ int ScanConfiguration(char* path){
         }
         if(strncmp(token,"MAX_FILE_DIM",strlen(token))==0){
             token=strtok_r(NULL," \n",&tmpstr);
-            printf("TOKEN DIMENSIONE: %s\n",token);
-            data_bound=((int)strtol(token,NULL,10));//*(1000000);
+            data_bound=((int)strtol(token,NULL,10))*(1000000);
         }
         if(strncmp(token,"SOCKET_FILE_PATH",strlen(token))==0){
             token=strtok_r(NULL," \n",&tmpstr);

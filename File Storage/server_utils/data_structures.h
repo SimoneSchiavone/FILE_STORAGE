@@ -66,7 +66,6 @@ pthread_cond_t list_not_empty;
 int concurrent_list_push(Node** head_ref, int new_data);
 int concurrent_list_push_terminators(Node** head_ref,int nr_workers);
 int concurrent_list_pop(Node** head_ref);
-int concurrent_list_push_terminators_end(Node** head_ref,int nr_workers);
 void concurrent_list_destroy(struct Node* head_ref);
 
 void list_print(struct Node*);

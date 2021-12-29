@@ -59,16 +59,16 @@ while read riga; do
 		let READCOUNT=$[$READCOUNT+1]
 	fi
 	if [[ $riga == "Numero massimo di file memorizzati"* ]]; then
-		MAXFILENUM=${riga##*:}
+		MAXFILENUM=${riga##*: }
 	fi
 	if [[ $riga == "Dimensione massima raggiunta"* ]]; then
-		MAXFILEDIM=${riga##*:}
+		MAXFILEDIM=${riga##*: }
 	fi
 	if [[ $riga == "Numero attivazioni dell'algoritmo di rimpiazzamento"* ]]; then
-		REPL=${riga##*:}
+		REPL=${riga##*: }
 	fi
 	if [[ $riga == "Numero massimo di connessioni contemporanee"* ]]; then
-		MAXCONTCONN=${riga##*:}
+		MAXCONTCONN=${riga##*: }
 	fi
 done < $LOGFILE
 let WRITEAVG=0
@@ -98,7 +98,7 @@ echo "-> Numero di unlock effettuate: $UNLOCKCOUNT"
 echo "-> Numero di open-lock: $OPENLOCK"
 echo "----------"
 echo "-> Numero massimo di file memorizzati: $MAXFILENUM bytes"
-echo "-> Dimensione massima di file memorizzati: $MAXFILEDIM bytes"
+echo "-> Dimensione massima di file memorizzati: $MAXFILEDIM MB"
 echo "-> Attivazioni dell'algoritmo di rimpiazzamento: $REPL"
 echo "-> Massimo numero di connessioni contemporanee: $MAXCONTCONN bytes"
 echo "----------"

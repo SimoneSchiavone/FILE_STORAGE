@@ -1,139 +1,176 @@
 Creazione del file di log avvenuta con successo!
 --------------------
-Wed Dec 29 19:45:59 2021
+Wed Dec 29 22:49:34 2021
 Server acceso!
 --------------------
-Wed Dec 29 19:46:02 2021
+Wed Dec 29 22:49:38 2021
 [MAIN] Accettata una connessione sul fd 9
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:43 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:3
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:43 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/filevuoto.txt e' stato creato, inserito nello storage e bloccato
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:43 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:6
 --------------------
-Wed Dec 29 19:46:07 2021
-Occupazione dello storage: 1 bytes su 1280000
+Wed Dec 29 22:49:43 2021
+Occupazione dello storage: 1 bytes su 128000000
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:43 2021
 [Client 9] Sono stati scritti 1 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/filevuoto.txt
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:43 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:10
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:43 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/filevuoto.txt e' stato correttamente rimosso dallo storage
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:3
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/minnie.txt e' stato creato, inserito nello storage e bloccato
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:6
 --------------------
-Wed Dec 29 19:46:07 2021
-Occupazione dello storage: 225 bytes su 1280000
+Wed Dec 29 22:49:44 2021
+Occupazione dello storage: 225 bytes su 128000000
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Sono stati scritti 224 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/minnie.txt
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:10
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/minnie.txt e' stato correttamente rimosso dallo storage
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:3
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/topolino.txt e' stato creato, inserito nello storage e bloccato
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:6
 --------------------
-Wed Dec 29 19:46:07 2021
-Occupazione dello storage: 1319 bytes su 1280000
+Wed Dec 29 22:49:44 2021
+Occupazione dello storage: 1319 bytes su 128000000
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Sono stati scritti 1094 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/topolino.txt
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:10
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/topolino.txt e' stato correttamente rimosso dallo storage
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:3
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/randomtext.pdf e' stato creato, inserito nello storage e bloccato
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:6
 --------------------
-Wed Dec 29 19:46:07 2021
-Occupazione dello storage: 44554 bytes su 1280000
+Wed Dec 29 22:49:44 2021
+Occupazione dello storage: 44554 bytes su 128000000
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Sono stati scritti 43235 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/randomtext.pdf
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:10
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/randomtext.pdf e' stato correttamente rimosso dallo storage
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:3
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/ansa.txt e' stato creato, inserito nello storage e bloccato
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:6
 --------------------
-Wed Dec 29 19:46:07 2021
-Occupazione dello storage: 45134 bytes su 1280000
+Wed Dec 29 22:49:44 2021
+Occupazione dello storage: 45134 bytes su 128000000
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Sono stati scritti 580 bytes nel file con pathname /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/ansa.txt
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [WORKER-99055360]
 Ho ricevuto la seguente richiesta:10
 --------------------
-Wed Dec 29 19:46:07 2021
+Wed Dec 29 22:49:44 2021
 [Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/ansa.txt e' stato correttamente rimosso dallo storage
 --------------------
-Wed Dec 29 19:46:08 2021
-[MAIN] Ho ricevuto un segnale di terminazione immediata, esco--------------------
-Wed Dec 29 19:46:08 2021
-STATISTICHE FINALI
-Numero massimo di file memorizzati:5
-Dimensione massima raggiunta:45134
-Numero attivazioni dell'algoritmo di rimpiazzamento:0
-Numero massimo di connessioni contemporanee:1
+Wed Dec 29 22:49:49 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:3
 --------------------
-Wed Dec 29 19:46:08 2021
+Wed Dec 29 22:49:49 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:9
+--------------------
+Wed Dec 29 22:49:49 2021
+[Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/minnie.txt e' stato correttamente sbloccato
+--------------------
+Wed Dec 29 22:49:49 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:10
+--------------------
+Wed Dec 29 22:49:49 2021
+[Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/minnie.txt e' stato correttamente rimosso dallo storage
+--------------------
+Wed Dec 29 22:49:49 2021
+[WORKER-99055360]
+Ho ricevuto la seguente richiesta:12
+--------------------
+Wed Dec 29 22:49:49 2021
+[Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/filevuoto.txt e' stato sbloccato perche' e' terminata la connessione
+--------------------
+Wed Dec 29 22:49:49 2021
+[Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/randomtext.pdf e' stato sbloccato perche' e' terminata la connessione
+--------------------
+Wed Dec 29 22:49:49 2021
+[Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/topolino.txt e' stato sbloccato perche' e' terminata la connessione
+--------------------
+Wed Dec 29 22:49:49 2021
+[Client 9] Il file /home/simone/Scrivania/SOL/Assegnamenti/Progetto/File_di_prova/ansa.txt e' stato sbloccato perche' e' terminata la connessione
+--------------------
+Wed Dec 29 22:49:49 2021
+[MAIN] Chiusa la connessione sul fd 9
+--------------------
+Wed Dec 29 22:52:53 2021
+[MAIN] Ho ricevuto un segnale di terminazione immediata, esco--------------------
+Wed Dec 29 22:52:53 2021
+STATISTICHE FINALI
+Numero massimo di file memorizzati: 5
+Dimensione massima raggiunta (in MB): 0.04513400
+Numero attivazioni dell'algoritmo di rimpiazzamento: 0
+Numero massimo di connessioni contemporanee: 1
+--------------------
+Wed Dec 29 22:52:53 2021
 Server spento!

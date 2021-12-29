@@ -4,10 +4,8 @@
 int fd_connection;
 char* backup_dir;
 char* read_dir;
-
-int w_or_W_to_do; //?
-
 int print_options;
+
 #define IF_PRINT_ENABLED(print) if(print_options){print}
 
 int openConnection(const char* sockname, int msec, const struct timespec abstime);

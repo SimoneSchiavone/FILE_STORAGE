@@ -28,8 +28,6 @@ int replacement_policy; //politica di rimpiazzamento dei file nello storage
 char socket_name[128]; //nome del socket AF_UNIX
 char logfilename[128]; //nome del file di log
 int max_connections_bound; //numero massimo di connessioni contemporanee supportate
-int active_connections; //numero di connessioni attive
-int max_active_connections; //numero massimo di connessioni contemporanee attive
 
 /*-----File-----*/
 typedef struct stored_file{
