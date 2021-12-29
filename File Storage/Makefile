@@ -38,3 +38,5 @@ test1:
 	@echo "----------FINE TEST #1----------"
 	@./statistiche.sh
 
+test2:
+	@bash testsighup.sh

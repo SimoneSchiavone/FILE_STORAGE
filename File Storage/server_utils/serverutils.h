@@ -85,8 +85,6 @@ int DestroyStorage();
 
 /*-----Thread Pool-----*/
 pthread_t* threadpool;
-int terminated_workers;
-pthread_mutex_t term_var;
 IntLinkedList queue;
 
 

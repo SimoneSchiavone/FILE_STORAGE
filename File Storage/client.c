@@ -319,7 +319,7 @@ int main(int argc,char** argv){
                     error=-1;
                     goto exit;
                 }     
-                new->op->args[0]=optarg;
+                new->op->args[0]=strdup(optarg);
                 if(list_insert_operation_end(&command_list,new)==-1){
                     fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
                     free(new);
@@ -705,6 +705,7 @@ void Execute_Requests(operation_node* request_list){
                     }
                 }
                 f=f->next;
+                
             }    
             free_name_list(to_send);
         }
