@@ -635,6 +635,7 @@ void Execute_Requests(operation_node* request_list){
                     continue;
 
                 }
+                printf("NUMERO IDENTIFICATO %d\n",num);
             }else{
                 num=0;
             }
@@ -855,3 +856,4 @@ int operation_check(operation_node* head){
     }
     return 0;
 }
+

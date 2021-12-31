@@ -265,20 +265,20 @@ int FIFO_Replacement(int fd,int send_to_client,char* do_not_remove){
     if(send_to_client){
         //Invio il flag che indica che c'e' un file espulso da inviare al server
         int there_is_a_file_to_send=1,ctrl;
-        SYSCALL(ctrl,write(fd,&there_is_a_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
+        SYSCALL(ctrl,writen(fd,&there_is_a_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
         //printf("Debug, ho inviato al client il flag 1 per segnalare che c'e' un file da inviargli\n");
 
         //Invio il nome del file
         int name_size=strlen(victim_name)+1;
-        SYSCALL(ctrl,write(fd,&name_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+        SYSCALL(ctrl,writen(fd,&name_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
         //printf("Debug, ho inviato al client %d bytes di dimensione del nome del file espulso %d\n",ctrl,name_size);
-        SYSCALL(ctrl,write(fd,victim_name,name_size),"Errore nell'invio del pathname al client");
+        SYSCALL(ctrl,writen(fd,victim_name,name_size),"Errore nell'invio del pathname al client");
         //printf("Debug, ho inviato al client %d bytes di nome del file espulso %s\n",ctrl,victim_name);
 
         //Invio il contenuto del file
-        SYSCALL(ctrl,write(fd,&oldest_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+        SYSCALL(ctrl,writen(fd,&oldest_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
         //printf("Debug, ho inviato al client %d bytes di dimensione del contenuto del file espulso %d\n",ctrl,oldest_size);
-        SYSCALL(ctrl,write(fd,victim_content,oldest_size),"Errore nell'invio della dimensione del pathname");
+        SYSCALL(ctrl,writen(fd,victim_content,oldest_size),"Errore nell'invio della dimensione del pathname");
         //printf("Debug, ho inviato al client %d bytes di contenuto del file espulso %s\n",ctrl,victim_content);
     }
     
@@ -344,17 +344,17 @@ int LRU_Replacement(int fd,int send_to_client,char* do_not_remove){
     if(send_to_client){
         //Invio il flag che indica che c'e' un file espulso da inviare al server
         int there_is_a_file_to_send=1,ctrl;
-        SYSCALL(ctrl,write(fd,&there_is_a_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
+        SYSCALL(ctrl,writen(fd,&there_is_a_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
         printf("Ho inviato al client il flag 1 per segnalare che c'e' un file da inviargli\n");
         //Invio il nome del file
         int name_size=strlen(victim_name)+1;
-        SYSCALL(ctrl,write(fd,&name_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
-        SYSCALL(ctrl,write(fd,victim_name,name_size),"Errore nell'invio del pathname al client");
+        SYSCALL(ctrl,writen(fd,&name_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+        SYSCALL(ctrl,writen(fd,victim_name,name_size),"Errore nell'invio del pathname al client");
         printf("Ho inviato al client il nome del file\n");
         //Invio il contenuto del file
-        SYSCALL(ctrl,write(fd,&oldest_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+        SYSCALL(ctrl,writen(fd,&oldest_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
         printf("Ho inviato al client %d bytes di dimensione del contenuto del file %d\n",ctrl,oldest_size);
-        SYSCALL(ctrl,write(fd,victim_content,oldest_size),"Errore nell'invio della dimensione del pathname");
+        SYSCALL(ctrl,writen(fd,victim_content,oldest_size),"Errore nell'invio della dimensione del pathname");
         printf("Ho inviato al client %d bytes di il contenuto del file\n",ctrl);
     }
     
@@ -428,7 +428,7 @@ int StorageUpdateSize(hash_t* ht,int s,int fd,int send_to_client,char* do_not_re
     if(send_to_client){
         printf("HO SPAZIO A SUFFICIENZA PER MEMORIZZARE, invio al client uno 0\n");
         int no_file_to_send=0,ctrl;
-        SYSCALL(ctrl,write(fd,&no_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
+        SYSCALL(ctrl,writen(fd,&no_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
     }
     return r;
 }
@@ -723,7 +723,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
         sprintf(r.message,"Parametro nullo!");
         LOGFILEAPPEND("[Client %d] Errore nella WriteFile\n",fd);
         int no_file=0,ctrl;
-        SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
+        SYSCALL(ctrl,writen(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
     }
 
@@ -740,7 +740,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
         free(content);
         pthread_mutex_unlock(&mutex_storage);
         int no_file=0,ctrl;
-        SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
+        SYSCALL(ctrl,writen(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
     }else{ //Il file esiste nello storage
         pthread_mutex_lock(&file->mutex_file);
@@ -755,7 +755,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
             //Libero la memoria
             LOGFILEAPPEND("[Client %d] Non si dispone dell'autorizzazione per scrivere il file %s\n",fd,pathname);
             int ctrl;
-            SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
+            SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
             free(pathname);
             free(content);
             return r; 
@@ -773,7 +773,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
                 free(content);
                 int ctrl;
                 authorized=0;
-                SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
+                SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
                 return r;
             }else{
                 //Verifico se lo storage puo' contenere il file
@@ -790,7 +790,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
                     free(content);
                     int ctrl;
                     authorized=0;
-                    SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
+                    SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
                     return r;
                 }
             }
@@ -798,7 +798,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
 
         //se i controlli precedenti sono andati a buon fine mandiamo l'autorizzazione a procedere
         int ctrl;
-        SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
+        SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
     }
 
     //Faccio spazio nello storage
@@ -845,7 +845,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         LOGFILEAPPEND("[Client %d] Errore nella AppendToFile\n",fd);
         int no_file=0,ctrl;
         //no autorizzazione
-        SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
+        SYSCALL(ctrl,writen(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
     }
 
@@ -865,7 +865,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         free(content_to_append);
         pthread_mutex_unlock(&mutex_storage);
         int no_file=0,ctrl;
-        SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
+        SYSCALL(ctrl,writen(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
 
     }else{ //Il file esiste nello storage
@@ -885,7 +885,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
             free(pathname);
             free(content_to_append);
             int ctrl;
-            SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
+            SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
             return r; 
         }else{
             //Verifichiamo se esiste gia' un contenuto
@@ -902,7 +902,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
                 free(content_to_append);
                 authorized=0;
                 int ctrl;
-                SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella scrittura della risposta");
+                SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella scrittura della risposta");
                 return r; 
             }else{  
                 newdim=((int)(file->size))+size-1;
@@ -921,14 +921,14 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
                     free(content_to_append);
                     int ctrl;
                     authorized=0;
-                    SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella scrittura della risposta");
+                    SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella scrittura della risposta");
                     return r;
                 }
             }
 
             //se i controlli precedenti sono andati a buon fine mandiamo l'autorizzazione a procedere
             int ctrl;
-            SYSCALL(ctrl,write(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
+            SYSCALL(ctrl,writen(fd,&authorized,sizeof(int)),"Errore nella 'write' dell'autorizzazione");
         }
 
         
@@ -958,7 +958,7 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         free(content_to_append);
         LOGFILEAPPEND("[Client %d] Errore nella AppendToFile\n",fd);
         int no_file=0,ctrl;
-        SYSCALL(ctrl,write(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
+        SYSCALL(ctrl,writen(fd,&no_file,sizeof(int)),"Errore nella scrittura della risposta");
         return r;
     }
 
@@ -1037,7 +1037,7 @@ response ReadNFiles(int n,int fd){
         nfiles=n;
     }
 
-    SYSCALL(ctrl,write(fd,&nfiles,sizeof(int)),"Errore nell'invio del numero di file che saranno inviati al server");
+    SYSCALL(ctrl,writen(fd,&nfiles,sizeof(int)),"Errore nell'invio del numero di file che saranno inviati al server");
     printf("Ho inviato %d bytes per il numero di file %d\n",ctrl,nfiles);
     int saven=nfiles;
     printf("Sono stati chiesti %d files, ne invio %d\n",n,nfiles);
@@ -1055,14 +1055,14 @@ response ReadNFiles(int n,int fd){
                     nfiles--;
                     //Invio dimensione del pathname e pathname
                     int pathdim=strlen(id)+1;
-                    SYSCALL(ctrl,write(fd,&pathdim,sizeof(int)),"Errore nella 'write' della dimensione del pathname");
+                    SYSCALL(ctrl,writen(fd,&pathdim,sizeof(int)),"Errore nella 'write' della dimensione del pathname");
                     printf("Ho inviato al client %d bytes di dimensione pathname cioe' %d\n",ctrl,pathdim);
-                    SYSCALL(ctrl,write(fd,id,pathdim),"Errore nella 'write' della contenuto del pathname");
+                    SYSCALL(ctrl,writen(fd,id,pathdim),"Errore nella 'write' della contenuto del pathname");
                     printf("Ho inviato al client %d bytes di pathname cioe' %s\n",ctrl,id);
                     //Invio dimensione del contenuto e contenuto
-                    SYSCALL(ctrl,write(fd,&sf->size,sizeof(int)),"Errore nella 'write' della dimensione del file");
+                    SYSCALL(ctrl,writen(fd,&sf->size,sizeof(int)),"Errore nella 'write' della dimensione del file");
                     printf("Ho inviato al client %d bytes di dimensione contenuto cioe' %d\n",ctrl,(int)sf->size);
-                    SYSCALL(ctrl,write(fd,sf->content,(int)sf->size),"Errore nella 'write' della contenuto del file");
+                    SYSCALL(ctrl,writen(fd,sf->content,(int)sf->size),"Errore nella 'write' della contenuto del file");
                     printf("Ho inviato al client %d bytes di contenuto cioe' %s\n",ctrl,sf->content);
                     gettimeofday(&sf->last_operation,NULL);
                     LOGFILEAPPEND("[Client %d] Sono stati letti con successo %d bytes del file %s\n",fd,sf->size,id);
@@ -1274,25 +1274,25 @@ int ExecuteRequest(int fun,int fd){
             int ctrl; //variabile che memorizza il risultato di ritorno di chiamate di sistema/funzioni
 
             //Leggo la dimensione del pathname e poi leggo il pathname
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST] Errore nella 'read' della dimensione del pathname");
             printf("[EXECUTE REQUEST-OpenFile] Devo ricevere un path di dimensione %d\n",intbuffer);
             char* stringbuffer; //buffer per contenere la stringa
             if(!(stringbuffer=(char*)calloc(intbuffer,sizeof(char)))){ //Verifica malloc
                 perror("[EXECUTE REQUEST-OpenFile] Errore nella 'malloc' del buffer per pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,stringbuffer,intbuffer),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,stringbuffer,intbuffer),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del pathname");
             printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il path %s di dimensione %d\n",stringbuffer,ctrl);
             
             //Leggo il flag o_create
             int o_create;
-            SYSCALL(ctrl,read(fd,&o_create,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_create");
+            SYSCALL(ctrl,readn(fd,&o_create,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_create");
             if(o_create)
                 printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il flag O_CREATE\n");
 
             //Leggo il flag o_lock
             int o_lock;
-            SYSCALL(ctrl,read(fd,&o_lock,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_locK");
+            SYSCALL(ctrl,readn(fd,&o_lock,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_locK");
             if(o_lock)
                 printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il flag O_LOCK\n");
 
@@ -1304,8 +1304,8 @@ int ExecuteRequest(int fun,int fd){
 
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
-            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST-OpenFile] Errore nella 'write' della risposta");
 
             return r.code;
         }
@@ -1315,13 +1315,13 @@ int ExecuteRequest(int fun,int fd){
             int ctrl; //variabile che memorizza il risultato di ritorno di chiamate di sistema/funzioni
 
             //Leggo la dimensione del pathname e poi leggo il pathname
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST-ReadFile] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST-ReadFile] Errore nella 'read' della dimensione del pathname");
             char* stringbuffer; //buffer per contenere la stringa
             if(!(stringbuffer=(char*)calloc(intbuffer,sizeof(char)))){ //Verifica malloc
                 perror("[EXECUTE REQUEST-ReadFile] Errore nella 'malloc' del buffer per pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,stringbuffer,intbuffer),"[EXECUTE REQUEST-ReadFile] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,stringbuffer,intbuffer),"[EXECUTE REQUEST-ReadFile] Errore nella 'read' del pathname");
             printf("[EXECUTE REQUEST-ReadFile] Ho ricevuto il path %s di dimensione %d\n",stringbuffer,ctrl);
             
             stored_file* found=NULL;
@@ -1331,16 +1331,16 @@ int ExecuteRequest(int fun,int fd){
 
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
-            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della risposta");
 
             if(r.code==0){
                 responsedim=(int)found->size;
                 printf("Dimensione del contenuto %d\n",responsedim);
                 //Invio prima la dimensione della risposta e poi la risposta
-                SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della dimensione del file da inviare");
+                SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della dimensione del file da inviare");
                 printf("Ho scritto %d bytes cioe' %d\n",ctrl,responsedim);
-                SYSCALL(ctrl,write(fd,found->content,responsedim),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' del contenuto del file");
+                SYSCALL(ctrl,writen(fd,found->content,responsedim),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' del contenuto del file");
                 printf("Ho scritto %d bytes cioe' %s\n",ctrl,found->content);
             }
             if(found)
@@ -1354,14 +1354,14 @@ int ExecuteRequest(int fun,int fd){
             int ctrl; //variabile che memorizza il risultato di ritorno di chiamate di sistema/funzioni
 
             //Leggo il numero di file da leggere
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST-ReadNFile] Errore nella 'read' del numero di files");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST-ReadNFile] Errore nella 'read' del numero di files");
             
             response r=ReadNFiles(intbuffer,fd);
             
             //-----Invio risposta-----
             int responsedim=strlen(r.message);
-            SYSCALL(ctrl,write(fd,&responsedim,sizeof(int)),"Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,sizeof(int)),"Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"Errore nella 'write' della risposta");
 
             return r.code;
         }
@@ -1369,18 +1369,18 @@ int ExecuteRequest(int fun,int fd){
             printf("\n\n*****Operazione WRITEFILE Fd: %d*****\n",fd);
             int intbuffer,ctrl;
             //-----Lettura del pathname-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 6] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 6] Errore nella 'read' della dimensione del pathname");
             printf("DEBUG, Ho ricevuto dal client %d bytes di dimensione pathname %d\n",ctrl,intbuffer);
             char* read_name=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del pathname
             if(read_name==NULL){
                 perror("Errore malloc buffer pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,read_name,intbuffer),"[EXECUTE REQUEST Case 6] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,read_name,intbuffer),"[EXECUTE REQUEST Case 6] Errore nella 'read' del pathname");
             printf("DEBUG, Ho ricevuto dal client %d bytes di pathname %s\n",ctrl,read_name);
 
             //-----Lettura del file-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 6] Errore nella 'read' della dimensione del file da leggere");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 6] Errore nella 'read' della dimensione del file da leggere");
             printf("DEBUG, Ho ricevuto dal client %d bytes di dimensione del contenuto %d\n",ctrl,intbuffer);
             char* read_file=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del file
             if(read_file==NULL){
@@ -1388,12 +1388,12 @@ int ExecuteRequest(int fun,int fd){
                 free(read_name); //prima di uscire dealloco il pathname gia' letto
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,read_file,intbuffer),"[EXECUTE REQUEST] Errore nella 'read' del file da leggere");
+            SYSCALL(ctrl,readn(fd,read_file,intbuffer),"[EXECUTE REQUEST] Errore nella 'read' del file da leggere");
             printf("DEBUG, Ho ricevuto dal client %d bytes di contenuto\n",ctrl);
             
             //-----Lettura del flag di invio degli eventuali file espulsi
             int flag;
-            SYSCALL(ctrl,read(fd,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
+            SYSCALL(ctrl,readn(fd,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
             printf("DEBUG, Ho ricevuto dal client %d bytes di flag espulsione %d\n",ctrl,flag);
 
             //-----Esecuzione operazione
@@ -1401,9 +1401,9 @@ int ExecuteRequest(int fun,int fd){
 
             //-----Invio risposta-----
             int responsedim=strlen(r.message);
-            SYSCALL(ctrl,write(fd,&responsedim,sizeof(int)),"Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,sizeof(int)),"Errore nella 'write' della dimensione della risposta");
             printf("Ho inviato %d bytes di dimensione cioe' %d\n",ctrl,responsedim);
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"Errore nella 'write' della risposta");
             printf("Ho inviato %d bytes di stringa: %s\n",ctrl,r.message);
             return r.code;
         }
@@ -1411,17 +1411,17 @@ int ExecuteRequest(int fun,int fd){
             printf("\n\n*****Operazione APPEND TO FILE Fd: %d*****\n",fd);
             int intbuffer,ctrl;
             //-----Lettura del pathname-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 7] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 7] Errore nella 'read' della dimensione del pathname");
             char* read_name=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del pathname
             if(read_name==NULL){
                 perror("Errore malloc buffer pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,read_name,intbuffer),"[EXECUTE REQUEST Case 7] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,read_name,intbuffer),"[EXECUTE REQUEST Case 7] Errore nella 'read' del pathname");
             printf("Ho ricevuto il pathname %s\n",read_name);
 
             //-----Lettura del contenuto da appendere-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 7] Errore nella 'read' della dimensione del file da leggere");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 7] Errore nella 'read' della dimensione del file da leggere");
             printf("Dimensione file %d\n",intbuffer);
             char* read_file=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del contenuto
             if(read_file==NULL){
@@ -1429,13 +1429,13 @@ int ExecuteRequest(int fun,int fd){
                 free(read_name); //prima di uscire dealloco il pathname gia' letto
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,read_file,intbuffer),"[EXECUTE REQUEST Case 7] Errore nella 'read' del file da leggere");
+            SYSCALL(ctrl,readn(fd,read_file,intbuffer),"[EXECUTE REQUEST Case 7] Errore nella 'read' del file da leggere");
             printf("Ho ricevuto %d bytes\n",ctrl);
             //printf("Ho ricevuto: %s\n",read_file);
             
             //-----Lettura del flag di invio degli eventuali file espulsi
             int flag;
-            SYSCALL(ctrl,read(fd,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
+            SYSCALL(ctrl,readn(fd,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
             printf("Ho ricevuto il flag %d\n",flag);
 
             //-----Esecuzione operazione
@@ -1443,9 +1443,9 @@ int ExecuteRequest(int fun,int fd){
             
             //-----Invio risposta-----
             int responsedim=strlen(r.message);
-            SYSCALL(ctrl,write(fd,&responsedim,sizeof(int)),"Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,sizeof(int)),"Errore nella 'write' della dimensione della risposta");
             printf("Ho inviato %d bytes di dimensione cioe' %d\n",ctrl,responsedim);
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"Errore nella 'write' della risposta");
             printf("Ho inviato %d bytes di stringa: %s\n",ctrl,r.message);
             return r.code;
 
@@ -1459,13 +1459,13 @@ int ExecuteRequest(int fun,int fd){
             printf("\n\n*****Operazione LOCK FILE Fd: %d*****\n",fd);
             int intbuffer,ctrl;
             //-----Lettura del pathname-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 8] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 8] Errore nella 'read' della dimensione del pathname");
             char* string_buffer=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del pathname
             if(string_buffer==NULL){
                 perror("Errore malloc buffer pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 8] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 8] Errore nella 'read' del pathname");
             printf("Ho ricevuto il pathname %s\n",string_buffer);
 
             response r=LockFile(string_buffer,fd,0);
@@ -1473,8 +1473,8 @@ int ExecuteRequest(int fun,int fd){
 
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
-            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST Case 8] Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST Case 8] Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST Case 8] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST Case 8] Errore nella 'write' della risposta");
 
             return r.code;
         } 
@@ -1482,13 +1482,13 @@ int ExecuteRequest(int fun,int fd){
             printf("\n\n*****Operazione UNLOCK FILE Fd: %d*****\n",fd);
             int intbuffer,ctrl;
             //-----Lettura del pathname-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 9] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 9] Errore nella 'read' della dimensione del pathname");
             char* string_buffer=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del pathname
             if(string_buffer==NULL){
                 perror("Errore malloc buffer pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 9] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 9] Errore nella 'read' del pathname");
             printf("Ho ricevuto il pathname %s\n",string_buffer);
 
             response r=UnlockFile(string_buffer,fd);
@@ -1496,21 +1496,21 @@ int ExecuteRequest(int fun,int fd){
 
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
-            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST Case 9] Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST Case 9] Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST Case 9] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST Case 9] Errore nella 'write' della risposta");
             return r.code;
         }
         case (10):{ //Operazione closeFile
             printf("\n\n*****Operazione CLOSE FILE Fd: %d*****\n",fd);
             int intbuffer,ctrl;
             //-----Lettura del pathname-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 10] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 10] Errore nella 'read' della dimensione del pathname");
             char* string_buffer=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del pathname
             if(string_buffer==NULL){
                 perror("Errore malloc buffer pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 10] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 10] Errore nella 'read' del pathname");
             printf("Ho ricevuto il pathname %s\n",string_buffer);
 
             response r=closeFile(string_buffer,fd);
@@ -1518,21 +1518,21 @@ int ExecuteRequest(int fun,int fd){
 
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
-            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST Case 10] Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST Case 10] Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST Case 10] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST Case 10] Errore nella 'write' della risposta");
             return r.code;
         }
         case (11):{ //Operazione Remove File
             printf("\n\n*****Operazione REMOVE FILE Fd: %d*****\n",fd);
             int intbuffer,ctrl;
             //-----Lettura del pathname-----
-            SYSCALL(ctrl,read(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 11] Errore nella 'read' della dimensione del pathname");
+            SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 11] Errore nella 'read' della dimensione del pathname");
             char* string_buffer=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del pathname
             if(string_buffer==NULL){
                 perror("Errore malloc buffer pathname");
                 return -1;
             }
-            SYSCALL(ctrl,read(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 11] Errore nella 'read' del pathname");
+            SYSCALL(ctrl,readn(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 11] Errore nella 'read' del pathname");
             printf("Ho ricevuto il pathname %s\n",string_buffer);
 
             response r=RemoveFile(string_buffer,fd);
@@ -1540,8 +1540,8 @@ int ExecuteRequest(int fun,int fd){
 
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
-            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST Case 11] Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST Case 11 Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST Case 11] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST Case 11 Errore nella 'write' della risposta");
             return r.code;
         }
         case (12):{ //Operazione "Ho finito"
@@ -1559,8 +1559,8 @@ int ExecuteRequest(int fun,int fd){
             LOGFILEAPPEND("Ho ricevuto il comando sconosciuto %d da parte del client",fun,fd);
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
-            SYSCALL(ctrl,write(fd,&responsedim,4),"[EXECUTE REQUEST] Errore nella 'write' della dimensione della risposta");
-            SYSCALL(ctrl,write(fd,r.message,responsedim),"[EXECUTE REQUEST] Errore nella 'write' della risposta");
+            SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST] Errore nella 'write' della dimensione della risposta");
+            SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST] Errore nella 'write' della risposta");
             return r.code;
         }
     }
@@ -1578,36 +1578,36 @@ void print_stored_file_info(FILE* stream,void* file){
 (tratto da “Advanced Programming In the UNIX Environment” by W. Richard Stevens and Stephen A. Rago, 2013, 3rd Edition, Addison-Wesley)*/
 ssize_t  /* Read "n" bytes from a descriptor */
 readn(int fd, void *ptr, size_t n) {  
-   size_t   nleft;
-   ssize_t  nread;
- 
-   nleft = n;
-   while (nleft > 0) {
-     if((nread = read(fd, ptr, nleft)) < 0) {
-        if (nleft == n) return -1; /* error, return -1 */
-        else break; /* error, return amount read so far */
-     } else if (nread == 0) break; /* EOF */
-     nleft -= nread;
-     ptr   += nread;
-   }
-   return(n - nleft); /* return >= 0 */
+    size_t   nleft;
+    ssize_t  nread;
+    char* buf=(char*)ptr;
+    nleft = n;
+    while (nleft > 0) {
+        if((nread = read(fd, buf, nleft)) < 0) {
+            if (nleft == n) return -1; /* error, return -1 */
+            else break; /* error, return amount read so far */
+        } else if (nread == 0) break; /* EOF */
+        nleft -= nread;
+        buf+=(int)nread;
+    }
+    return(n - nleft); /* return >= 0 */
 }
 
 /*Implementazione delle funzioni "readn" e "writen"
 (tratto da “Advanced Programming In the UNIX Environment” by W. Richard Stevens and Stephen A. Rago, 2013, 3rd Edition, Addison-Wesley)*/
 ssize_t  /* Write "n" bytes to a descriptor */
 writen(int fd, void *ptr, size_t n) {  
-   size_t   nleft;
-   ssize_t  nwritten;
- 
-   nleft = n;
-   while (nleft > 0) {
-     if((nwritten = write(fd, ptr, nleft)) < 0) {
-        if (nleft == n) return -1; /* error, return -1 */
-        else break; /* error, return amount written so far */
-     } else if (nwritten == 0) break; 
-     nleft -= nwritten;
-     ptr   += nwritten;
-   }
-   return(n - nleft); /* return >= 0 */
+    size_t   nleft;
+    ssize_t  nwritten;
+    char* buf=(char*)ptr;
+    nleft = n;
+    while (nleft > 0) {
+        if((nwritten = write(fd, buf, nleft)) < 0) {
+            if (nleft == n) return -1; /* error, return -1 */
+            else break; /* error, return amount written so far */
+        } else if (nwritten == 0) break; 
+        nleft -= nwritten;
+        buf   += nwritten;
+    }
+    return(n - nleft); /* return >= 0 */
 }

@@ -193,7 +193,7 @@ int files_in_directory(file_name** head,char* dirname){
         }
         currentfile=readdir(radix);
     }
-    chdir("..");
+    //chdir("..");
     if(closedir(radix)==-1){
         fprintf(stderr,"Errore nella chiusura della cartella %s\n",dirname);
         return -1;
@@ -206,6 +206,10 @@ int n_files_in_directory(file_name** head,char* dirname,int num){
         fprintf(stderr,"Errore cambiando la cartella\n");
         return -1;
     }
+    /*
+    char cwd[128];
+    getcwd(cwd,sizeof(cwd));
+    printf("INIZIO -> CWD: %s Dirname %s Num %d\n",cwd,dirname,num);*/
 
     //Apertura cartella
     DIR* radix=opendir(".");
@@ -215,6 +219,7 @@ int n_files_in_directory(file_name** head,char* dirname,int num){
     }
     struct dirent* currentfile=NULL;
     currentfile=readdir(radix);
+    int file_trovati=0;
     while(currentfile){
         if(!num){
             closedir(radix);
@@ -227,27 +232,37 @@ int n_files_in_directory(file_name** head,char* dirname,int num){
             closedir(radix);
             return -1;
         }
+        //printf("Nome file %s\n",currentfile->d_name);
         if(S_ISDIR(c.st_mode)){ //Se e' una directory ricorro
             if(!isdot(currentfile->d_name)){
-		        printf("%s e' una cartella, ricorro\n",currentfile->d_name);
-	            n_files_in_directory(head,currentfile->d_name,num);
+		        //printf("%s e' una cartella, ricorro\n",currentfile->d_name);
+	            int trovati=n_files_in_directory(head,currentfile->d_name,num);
+                if(trovati==-1){
+                    printf("Errore, esco\n");
+                    return -1;
+                }
+                //printf("Dalla chiamata su %s ho trovato %d files, n valeva %d ",currentfile->d_name,trovati,num);
+                num-=trovati;
+                //printf(" ora vale %d\n",num);
 	            chdir("..");
 	        }
         }else{ //Se e' un file inserisco il suo nome in lista
+            //printf("%s inserito in lista\n",currentfile->d_name);
             file_name* to_insert=(file_name*)malloc(sizeof(file_name));
             to_insert->name=NULL;
             to_insert->name=realpath(currentfile->d_name,to_insert->name);
             to_insert->next=(*head);
             (*head)=to_insert;
+            num--;
+            file_trovati++;
         }
         currentfile=readdir(radix);
-        num--;
     }
-    chdir("..");
+    //printf("File finiti in %s, salgo\n",cwd);
+    //chdir("..");
     if(closedir(radix)==-1){
         fprintf(stderr,"Errore nella chiusura della cartella %s\n",dirname);
         return -1;
     }
-    return 0;
+    return file_trovati;
 }
-
