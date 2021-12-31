@@ -186,12 +186,14 @@ int files_in_directory(file_name** head,char* dirname){
 	        }
         }else{ //Se e' un file inserisco il suo nome in lista
             file_name* to_insert=(file_name*)malloc(sizeof(file_name));
-            to_insert->name=strdup(currentfile->d_name);
+            to_insert->name=NULL;
+            to_insert->name=realpath(currentfile->d_name,to_insert->name);
             to_insert->next=(*head);
             (*head)=to_insert;
         }
         currentfile=readdir(radix);
     }
+    chdir("..");
     if(closedir(radix)==-1){
         fprintf(stderr,"Errore nella chiusura della cartella %s\n",dirname);
         return -1;
@@ -233,13 +235,15 @@ int n_files_in_directory(file_name** head,char* dirname,int num){
 	        }
         }else{ //Se e' un file inserisco il suo nome in lista
             file_name* to_insert=(file_name*)malloc(sizeof(file_name));
-            to_insert->name=strdup(currentfile->d_name);
+            to_insert->name=NULL;
+            to_insert->name=realpath(currentfile->d_name,to_insert->name);
             to_insert->next=(*head);
             (*head)=to_insert;
         }
         currentfile=readdir(radix);
         num--;
     }
+    chdir("..");
     if(closedir(radix)==-1){
         fprintf(stderr,"Errore nella chiusura della cartella %s\n",dirname);
         return -1;

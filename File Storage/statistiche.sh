@@ -7,8 +7,10 @@ if test -f "$LOGFILE"; then
 	else
 	echo "File di log standard $LOGFILE non presente, cerco il nome nel file di configurazione"
 	while read riga; do
+		echo $riga
 		if [[ $riga == "LOG_FILE_NAME"* ]]; then
 			LOGFILE=${riga#*./}
+			echo $LOGFILE
 			break
 		fi
 	done < txt/config_file.txt
@@ -29,12 +31,14 @@ let READDIM=0; #dimensione letture con successo
 let READCOUNT=0; #numero letture con successo
 let LOCKCOUNT=0; #numero di lock con successo
 let UNLOCKCOUNT=0; #numero di unlock con successo
+let CLOSECOUNT=0; #numero di close
 
 READNUM=$(grep -w -c 'richiesta:4' $LOGFILE)
 WRITENUM=$(grep -w -c 'richiesta:6' $LOGFILE)
 OPENLOCK=$(grep -w -c 'inserito nello storage e bloccato' $LOGFILE)
 LOCKCOUNT=$(grep -w -c 'correttamente bloccato' $LOGFILE)
 UNLOCKCOUNT=$(grep -w -c 'correttamente sbloccato' $LOGFILE)
+CLOSECOUNT=$(grep -w -c 'chiuso' $LOGFILE)
 
 while read riga; do
 	if [[ $riga == *"Sono stati scritti"* ]]; then
@@ -96,6 +100,7 @@ echo "----------"
 echo "-> Numero di lock effettuate: $LOCKCOUNT"
 echo "-> Numero di unlock effettuate: $UNLOCKCOUNT"
 echo "-> Numero di open-lock: $OPENLOCK"
+echo "-> Numero di close: $CLOSECOUNT"
 echo "----------"
 echo "-> Numero massimo di file memorizzati: $MAXFILENUM bytes"
 echo "-> Dimensione massima di file memorizzati: $MAXFILEDIM MB"

@@ -3,6 +3,7 @@
 // Matricola 582418
 #include <sys/stat.h>
 #include <dirent.h>
+
 void Welcome();
 void PrintAcceptedOptions();
 int Count_Commas(char* str);

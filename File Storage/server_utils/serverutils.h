@@ -86,6 +86,7 @@ pthread_t* threadpool;
 IntLinkedList queue;
 
 
-
+ssize_t readn(int fd, void *ptr, size_t n);
+ssize_t writen(int fd, void *ptr, size_t n);
 
 

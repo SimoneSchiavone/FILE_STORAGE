@@ -241,7 +241,7 @@ int FIFO_Replacement(int fd,int send_to_client,char* do_not_remove){
             if(curr_e->key){
                 if ((curr_e->data)){
                     //stored_file da analizzare
-                    printf("TIMESTAMP %s - %d.%d\n",(char*)(curr_e->key),(int)((((stored_file*)(curr_e->data))->creation_time)).tv_sec,(int)((((stored_file*)(curr_e->data))->creation_time)).tv_usec);
+                    //printf("TIMESTAMP %s - %d.%d\n",(char*)(curr_e->key),(int)((((stored_file*)(curr_e->data))->creation_time)).tv_sec,(int)((((stored_file*)(curr_e->data))->creation_time)).tv_usec);
                     if(compare_timeval(&oldest_time,&(((stored_file*)curr_e->data))->creation_time)>0){
                         //Ho trovato il nuovo minimo
                         if(check && (strncmp(curr_e->key,do_not_remove,strlen(curr_e->key))==0)){
@@ -266,20 +266,20 @@ int FIFO_Replacement(int fd,int send_to_client,char* do_not_remove){
         //Invio il flag che indica che c'e' un file espulso da inviare al server
         int there_is_a_file_to_send=1,ctrl;
         SYSCALL(ctrl,write(fd,&there_is_a_file_to_send,sizeof(int)),"Errore nella 'write' del flag 0");
-        printf("Debug, ho inviato al client il flag 1 per segnalare che c'e' un file da inviargli\n");
+        //printf("Debug, ho inviato al client il flag 1 per segnalare che c'e' un file da inviargli\n");
 
         //Invio il nome del file
         int name_size=strlen(victim_name)+1;
         SYSCALL(ctrl,write(fd,&name_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
-        printf("Debug, ho inviato al client %d bytes di dimensione del nome del file espulso %d\n",ctrl,name_size);
+        //printf("Debug, ho inviato al client %d bytes di dimensione del nome del file espulso %d\n",ctrl,name_size);
         SYSCALL(ctrl,write(fd,victim_name,name_size),"Errore nell'invio del pathname al client");
-        printf("Debug, ho inviato al client %d bytes di nome del file espulso %s\n",ctrl,victim_name);
+        //printf("Debug, ho inviato al client %d bytes di nome del file espulso %s\n",ctrl,victim_name);
 
         //Invio il contenuto del file
         SYSCALL(ctrl,write(fd,&oldest_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
-        printf("Debug, ho inviato al client %d bytes di dimensione del contenuto del file espulso %d\n",ctrl,oldest_size);
+        //printf("Debug, ho inviato al client %d bytes di dimensione del contenuto del file espulso %d\n",ctrl,oldest_size);
         SYSCALL(ctrl,write(fd,victim_content,oldest_size),"Errore nell'invio della dimensione del pathname");
-        printf("Debug, ho inviato al client %d bytes di contenuto del file espulso %s\n",ctrl,victim_content);
+        //printf("Debug, ho inviato al client %d bytes di contenuto del file espulso %s\n",ctrl,victim_content);
     }
     
     int delete=hash_delete(storage,victim_name,NULL,free_stored_file);
@@ -311,7 +311,6 @@ int LRU_Replacement(int fd,int send_to_client,char* do_not_remove){
     oldest_time.tv_usec=__INT_MAX__;
     oldest_time.tv_sec=__INT_MAX__;
     
-    //time_t oldest_time=__INT_MAX__; //tempo di crezione della vittima
     int oldest_size=0; //dimensione della vittima
 
     entry_t *bucket,*curr_e;
@@ -321,14 +320,14 @@ int LRU_Replacement(int fd,int send_to_client,char* do_not_remove){
             if(curr_e->key){
                 if ((curr_e->data)){
                     //stored_file da analizzare
-                    printf("TIMESTAMP %s - %d.%d\n",(char*)(curr_e->key),(int)((((stored_file*)(curr_e->data))->last_operation)).tv_sec,(int)((((stored_file*)(curr_e->data))->last_operation)).tv_usec);
+                    //printf("TIMESTAMP %s - %d.%d\n",(char*)(curr_e->key),(int)((((stored_file*)(curr_e->data))->last_operation)).tv_sec,(int)((((stored_file*)(curr_e->data))->last_operation)).tv_usec);
                     if(compare_timeval(&oldest_time,&(((stored_file*)curr_e->data))->last_operation)>0){
                         //Ho trovato il nuovo minimo
                         if(check && (strncmp(curr_e->key,do_not_remove,strlen(curr_e->key))==0)){
                             //Ignoro questo file perche' e' di mio interesse e non voglio eliminarlo
                         }else{
                             victim_name=curr_e->key;
-                            printf("Nuova vittima %s\n",victim_name);
+                            //printf("Nuova vittima %s\n",victim_name);
                             victim_content=(((stored_file*)curr_e->data)->content);
                             oldest_time=(((stored_file*)curr_e->data)->last_operation);
                             oldest_size=((int)((stored_file*)(curr_e->data))->size);
@@ -354,8 +353,9 @@ int LRU_Replacement(int fd,int send_to_client,char* do_not_remove){
         printf("Ho inviato al client il nome del file\n");
         //Invio il contenuto del file
         SYSCALL(ctrl,write(fd,&oldest_size,sizeof(int)),"Errore nell'invio della dimensione del pathname");
+        printf("Ho inviato al client %d bytes di dimensione del contenuto del file %d\n",ctrl,oldest_size);
         SYSCALL(ctrl,write(fd,victim_content,oldest_size),"Errore nell'invio della dimensione del pathname");
-        printf("Ho inviato al client il contenuto del file con dimensione %d\n",oldest_size);
+        printf("Ho inviato al client %d bytes di il contenuto del file\n",ctrl);
     }
     
     int delete=hash_delete(storage,victim_name,NULL,free_stored_file);
@@ -405,7 +405,7 @@ int StorageUpdateSize(hash_t* ht,int s,int fd,int send_to_client,char* do_not_re
     int need_replacement=0;
     
     need_replacement = (data_size+s<=data_bound) ? 0 : 1;
-
+    printf("DEBUG\n DataSize %d DataSize+s %d DataBound %d\n",data_size,data_size+s,data_bound);
     while(need_replacement){
         printf("--NON-- HO SPAZIO A SUFFICIENZA PER MEMORIZZARE\n");
         if(StartReplacementAlgorithm(fd,send_to_client,do_not_remove)!=0){
@@ -435,6 +435,7 @@ int StorageUpdateSize(hash_t* ht,int s,int fd,int send_to_client,char* do_not_re
 
 int CanWeStoreAnotherFile(){
     int r;
+    printf("HT Entryes %d , FilesBound %d\n",storage->nentries,files_bound);
     if(storage->nentries==files_bound)
         r=0;
     else
@@ -529,13 +530,26 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         //Acquisisco il mutex sullo storage
         pthread_mutex_lock(&mutex_storage);
 
+        stored_file* found=hash_find(storage,pathname);
+        if(found!=NULL){
+            fprintf(stderr,"%s e' gia' presente nello storage\n",pathname);
+            r.code=-1;
+            sprintf(r.message,"Il file %s è gia' presente nello storage!",pathname);
+            LOGFILEAPPEND("[Client %d] Il file %s e' gia' presente nello storage!\n",fd_owner,pathname);
+            pthread_mutex_unlock(&mutex_storage);
+            return r;
+        }
+
         //Verifichiamo che sia possibile creare un nuovo file nello storage (condizione sul nr max di file)
         if(!CanWeStoreAnotherFile()){
-            r.code=-1;
-            sprintf(r.message,"Non e' possibile memorizzare ulteriori file nello storage (max numero file archiviati raggiunto)\n");
-            LOGFILEAPPEND("[Client %d] Non e' possibile memorizzare il file %s per raggiunta capacità massima dello storage (max numero file archiviati raggiunto)\n",fd_owner,pathname);
-            pthread_mutex_unlock(&mutex_storage);
-            return r; 
+            printf("Non e' possibile memorizzare ulteriori file nello storage (max numero file archiviati raggiunto), procedo all'eliminazione di un file\n");
+            if(StartReplacementAlgorithm(fd_owner,0,NULL)==-1){
+                r.code=-1;
+                sprintf(r.message,"Non e' possibile memorizzare ulteriori file nello storage (max numero file archiviati raggiunto)\n");
+                LOGFILEAPPEND("[Client %d] Non e' possibile memorizzare il file %s per raggiunta capacità massima dello storage (max numero file archiviati raggiunto)\n",fd_owner,pathname);
+                pthread_mutex_unlock(&mutex_storage);
+                return r;
+            }
         }
 
         //Creo un nuovo stored_file
@@ -554,7 +568,7 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         new_file->to_delete=0; //Non e' in fase di eliminazione
         new_file->opened_by=NULL;
         if(list_push(&new_file->opened_by,fd_owner)==0){
-            printf("Inserimento corretto in lista\n");
+            //printf("Inserimento corretto in lista\n");
         }else{
             printf("ERRORE IN INSERIMENTO IN LISTA");
         }
@@ -615,10 +629,6 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
             }
             case 0:{
                 printf("[FILE STORAGE] %s inserito nello storage\n",id);
-                //pthread_mutex_lock(&new_file->mutex_file);
-                /*La openfile senza alcun flag Ocreate o Olock acquisisce il mutex del file
-                per poter leggere e scrivere, il setting di OLOCk fa in modo che nessun altro
-                client può leggere quel file anche se l'ho chiuso!*/
 
                 //Aggiornamento max_data_num
                 if((storage->nentries)>max_data_num){
@@ -1018,9 +1028,7 @@ response ReadNFiles(int n,int fd){
     
     //Determino il numero di file che saranno inviati dopo aver analizzato 'n'
     int nfiles,ctrl; 
-    printf("Acquisisco lock sullo storage\n");
     pthread_mutex_lock(&mutex_storage);
-    printf("Acquisita lock sullo storage\n");
     if(n<=0 || n>not_empty_files_num) {
         //Leggo tutti i files
         nfiles=not_empty_files_num;
@@ -1043,7 +1051,6 @@ response ReadNFiles(int n,int fd){
                 stored_file* sf=(stored_file*)curr->data;
                 char* id=(char*)curr->key;
                 pthread_mutex_lock(&sf->mutex_file);
-                printf("File %s Proprietario %d Dimensione %d\n",id,sf->fd_holder,(int)sf->size);
                 if(sf->content){
                     nfiles--;
                     //Invio dimensione del pathname e pathname
@@ -1252,7 +1259,7 @@ response closeFile(char* pathname,int fd){
     }else{
         r.code=0;
         sprintf(r.message,"OK, Il file %s e' stato correttamente chiuso",pathname);
-        LOGFILEAPPEND("[Client %d] Il file %s e' stato correttamente rimosso dallo storage\n",fd,pathname);
+        LOGFILEAPPEND("[Client %d] Il file %s e' stato correttamente chiuso\n",fd,pathname);
     }
     pthread_mutex_unlock(&found->mutex_file);
     hash_dump(stdout,storage,print_stored_file_info);
@@ -1382,7 +1389,7 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,read(fd,read_file,intbuffer),"[EXECUTE REQUEST] Errore nella 'read' del file da leggere");
-            printf("DEBUG, Ho ricevuto dal client %d bytes di contenuto %s\n",ctrl,read_file);
+            printf("DEBUG, Ho ricevuto dal client %d bytes di contenuto\n",ctrl);
             
             //-----Lettura del flag di invio degli eventuali file espulsi
             int flag;
@@ -1424,7 +1431,7 @@ int ExecuteRequest(int fun,int fd){
             }
             SYSCALL(ctrl,read(fd,read_file,intbuffer),"[EXECUTE REQUEST Case 7] Errore nella 'read' del file da leggere");
             printf("Ho ricevuto %d bytes\n",ctrl);
-            printf("Ho ricevuto: %s\n",read_file);
+            //printf("Ho ricevuto: %s\n",read_file);
             
             //-----Lettura del flag di invio degli eventuali file espulsi
             int flag;
@@ -1565,4 +1572,42 @@ void print_stored_file_info(FILE* stream,void* file){
     //TODO: mutua esclusione sulla lettura del file
     fprintf(stream,"\tSize of content: %d\n\tOwner: %d\n\tCreated: %d.%ld\n\tLast Op: %d.%ld\n\tClients in attesa %d\n\tDa eliminare? %d\n\t",(int)param->size,param->fd_holder,(int)param->creation_time.tv_sec,param->creation_time.tv_usec,(int)param->last_operation.tv_sec,param->last_operation.tv_usec,param->clients_waiting,param->to_delete);
     list_print(param->opened_by);
+}
+
+/*Implementazione delle funzioni "readn" e "writen"
+(tratto da “Advanced Programming In the UNIX Environment” by W. Richard Stevens and Stephen A. Rago, 2013, 3rd Edition, Addison-Wesley)*/
+ssize_t  /* Read "n" bytes from a descriptor */
+readn(int fd, void *ptr, size_t n) {  
+   size_t   nleft;
+   ssize_t  nread;
+ 
+   nleft = n;
+   while (nleft > 0) {
+     if((nread = read(fd, ptr, nleft)) < 0) {
+        if (nleft == n) return -1; /* error, return -1 */
+        else break; /* error, return amount read so far */
+     } else if (nread == 0) break; /* EOF */
+     nleft -= nread;
+     ptr   += nread;
+   }
+   return(n - nleft); /* return >= 0 */
+}
+
+/*Implementazione delle funzioni "readn" e "writen"
+(tratto da “Advanced Programming In the UNIX Environment” by W. Richard Stevens and Stephen A. Rago, 2013, 3rd Edition, Addison-Wesley)*/
+ssize_t  /* Write "n" bytes to a descriptor */
+writen(int fd, void *ptr, size_t n) {  
+   size_t   nleft;
+   ssize_t  nwritten;
+ 
+   nleft = n;
+   while (nleft > 0) {
+     if((nwritten = write(fd, ptr, nleft)) < 0) {
+        if (nleft == n) return -1; /* error, return -1 */
+        else break; /* error, return amount written so far */
+     } else if (nwritten == 0) break; 
+     nleft -= nwritten;
+     ptr   += nwritten;
+   }
+   return(n - nleft); /* return >= 0 */
 }

@@ -49,7 +49,6 @@ int main(){
     CHECKRETURNVALUE(ctrl,InitializeStorage(),"Errore inizializzando lo storage",return -1);
 
     //Rimuoviamo socket relativi a precedenti computazioni del server
-    reset_socket();
     atexit(reset_socket);
 
     LOGFILEAPPEND("Server acceso!\n");
@@ -354,7 +353,7 @@ void* SignalHandlerFun(void* arg){
                 break;
             }
             case SIGHUP:{
-                printf("Ricevuto SIGQUIT -> Terminare in modo graceful\n");
+                printf("Ricevuto SIGHUP -> Terminare in modo graceful\n");
                 fflush(stdout);
                 //notifico il server della ricezione di un segnale di terminazione graceful
                 int received_a_signal=2;

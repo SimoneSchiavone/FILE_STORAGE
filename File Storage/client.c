@@ -28,12 +28,17 @@ al server multithreaded.*/
 
 int error;
 int delay;
+
 int operation_check(operation_node* head);
 void Execute_Requests(operation_node* request_list);
 
 int main(int argc,char** argv){
     error=0,delay=0,print_options=0;
     backup_dir=NULL;
+    char cwd[128];
+    getcwd(cwd,sizeof(cwd));
+    realpath(cwd,working_directory);
+
 
     int ctrl;
     struct sigaction s;
@@ -523,15 +528,19 @@ int main(int argc,char** argv){
     struct timespec a;
     a.tv_sec=15;
     print_command_list(command_list);
+
     if(socketname==NULL){
-        if(openConnection(SOCKNAME,5000,a)==-1)
+        if(openConnection(SOCKNAME,5000,a)==-1){
+            perror("Errore di connessione con il server");
             goto exit;
+        }
     }else{
-        if(openConnection(socketname,5000,a)==-1)
+        if(openConnection(socketname,5000,a)==-1){
+            perror("Errore di connessione con il server");
             goto exit;
+        }
     }
 
-    print_command_list(command_list);
     Execute_Requests(command_list);
     
     if(socketname){
@@ -546,6 +555,7 @@ int main(int argc,char** argv){
         
     exit:
         list_destroy(command_list);
+        //free(working_directory);
         if(!error)
             return EXIT_SUCCESS;
         else
@@ -572,8 +582,8 @@ void Execute_Requests(operation_node* request_list){
         if(curr->op->option=='W'){
             for(int i=0;i<curr->op->argc;i++){ //Scorriamo i file da scrivere sul file storage
                 int open_return=-1,write_return=-1;
-                if((open_return=openFile(curr->op->args[i],1,1))==-1){ //Open con la create
-                    open_return=openFile(curr->op->args[i],0,1); //Open con la lock
+                if((open_return=openFile(curr->op->args[i],OCREATE|OLOCK))==-1){ //Open con la create
+                    open_return=openFile(curr->op->args[i],OLOCK); //Open con la lock
                 }
                 if(open_return==0){ //procediamo alla scrittura se una delle due aperture e' andata a buon fine
                     if((write_return=writeFile(curr->op->args[i],backup_dir))==-1){ //se la Write non e' andata a buon fine provo a fare una append
@@ -634,18 +644,20 @@ void Execute_Requests(operation_node* request_list){
                 if(files_in_directory(&to_send,curr->op->args[0])==-1){
                     fprintf(stderr,"Errore nella lettura dei file da inviare\n");
                 }
+                chdir(working_directory);
             }else{
                 //invio al piu' 'w' che sono nella directory
                 if(n_files_in_directory(&to_send,curr->op->args[0],num)==-1){
                     fprintf(stderr,"Errore nella lettura dei file da inviare");
                 }
+                chdir(working_directory);
             }
             //invio i file caricati nella lista al server
             file_name* f=to_send;
             while(f){
                 int open_return=-1,write_return=-1;
-                if((open_return=openFile(f->name,1,1))==-1){ //Open con la create
-                    open_return=openFile(f->name,0,1); //Open con la lock
+                if((open_return=openFile(f->name,OCREATE|OLOCK))==-1){ //Open con la create
+                    open_return=openFile(f->name,OLOCK); //Open con la lock
                 }
                 if(open_return==0){ //procediamo alla scrittura se una delle due aperture e' andata a buon fine
                     if((write_return=writeFile(f->name,backup_dir))==-1){ //se la Write non e' andata a buon fine provo a fare una append
@@ -690,7 +702,7 @@ void Execute_Requests(operation_node* request_list){
         if(curr->op->option=='r'){
             for(int i=0;i<curr->op->argc;i++){
                 int read_return=-1;
-                int open_return=openFile(curr->op->args[i],0,0);
+                int open_return=openFile(curr->op->args[i],0);
                 if(open_return==0){
                     char* buf;
                     size_t s;
@@ -744,7 +756,7 @@ void Execute_Requests(operation_node* request_list){
         //Operazione di lock di una lista di files
         if(curr->op->option=='l'){
             for(int i=0;i<curr->op->argc;i++){
-                int open_return=openFile(curr->op->args[i],0,0);
+                int open_return=openFile(curr->op->args[i],0);
                 int lock_return=-1;
                 if(open_return==0){
                     lock_return=lockFile(curr->op->args[i]);
@@ -771,7 +783,7 @@ void Execute_Requests(operation_node* request_list){
         //Operazione di unlock di una lista di files
         if(curr->op->option=='u'){
             for(int i=0;i<curr->op->argc;i++){
-                int open_return=openFile(curr->op->args[i],0,0);
+                int open_return=openFile(curr->op->args[i],0);
                 int unlock_return=-1;
                 if(open_return==0){
                     unlock_return=unlockFile(curr->op->args[i]);
@@ -798,7 +810,7 @@ void Execute_Requests(operation_node* request_list){
         //Operazione di cancellazione di una lista di files
         if(curr->op->option=='c'){
             for(int i=0;i<curr->op->argc;i++){
-                int open_return=openFile(curr->op->args[i],0,0);
+                int open_return=openFile(curr->op->args[i],0);
                 int cancel_return=-1;
                 if(open_return==0){
                     cancel_return=removeFile(curr->op->args[i]);

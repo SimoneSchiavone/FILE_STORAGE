@@ -39,4 +39,9 @@ test1:
 	@./statistiche.sh
 
 test2:
-	@bash testsighup.sh
+	@clear
+	@echo "----------INIZIO TEST #2----------"
+	cp test/test2/test2.txt txt/config_file.txt
+	@bash test/test2/test2.sh
+	@echo "----------FINE TEST #2----------"
+	./statistiche.sh
