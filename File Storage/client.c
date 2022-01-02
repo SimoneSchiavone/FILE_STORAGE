@@ -52,7 +52,7 @@ int main(int argc,char** argv){
     SYSCALL(ctrl,pthread_sigmask(SIG_SETMASK,&set,NULL),"Errore in sigmask rimozione maschera");
 
     char* socketname=NULL;
-    Welcome();
+    //Welcome();
 
     operation_node* command_list=NULL;
 
@@ -91,7 +91,6 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
-                printf("Ho trovato:%s\n",directory);
                 char* number=strtok_r(NULL,",",&tmp); //nr di file da inviare (argomento opzionale)
                 if(number){
                     c++;
@@ -527,7 +526,7 @@ int main(int argc,char** argv){
 
     struct timespec a;
     a.tv_sec=15;
-    print_command_list(command_list);
+    //print_command_list(command_list);
 
     if(socketname==NULL){
         if(openConnection(SOCKNAME,5000,a)==-1){
@@ -552,7 +551,9 @@ int main(int argc,char** argv){
             IF_PRINT_ENABLED(fprintf(stderr,"Errore in chiusura di connessione con %s\n",SOCKNAME););
         }
     }
-        
+    
+    
+
     exit:
         list_destroy(command_list);
         //free(working_directory);
@@ -635,7 +636,6 @@ void Execute_Requests(operation_node* request_list){
                     continue;
 
                 }
-                printf("NUMERO IDENTIFICATO %d\n",num);
             }else{
                 num=0;
             }

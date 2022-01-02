@@ -105,7 +105,7 @@ echo "----------"
 echo "-> Numero massimo di file memorizzati: $MAXFILENUM bytes"
 echo "-> Dimensione massima di file memorizzati: $MAXFILEDIM MB"
 echo "-> Attivazioni dell'algoritmo di rimpiazzamento: $REPL"
-echo "-> Massimo numero di connessioni contemporanee: $MAXCONTCONN bytes"
+echo "-> Massimo numero di connessioni contemporanee: $MAXCONTCONN"
 echo "----------"
 grep -w 'WORKER' $LOGFILE | sort -u > workerid.txt
 while read riga; do

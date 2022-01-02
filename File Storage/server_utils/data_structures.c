@@ -293,12 +293,13 @@ int concurrent_list_push(Node** head_ref, int new_data){
         return -1;
     }
     //Preparation of the new node
-    new_node->data  = new_data; 
+    new_node->data  = new_data;
+    pthread_mutex_lock(&mutex_list); 
     new_node->next = (*head_ref); 
     
     // Change head pointer as new node is added at the beginning 
-    pthread_mutex_lock(&mutex_list);
     (*head_ref)    = new_node; 
+    list_print(*head_ref);
     pthread_cond_signal(&list_not_empty);
     pthread_mutex_unlock(&mutex_list);
     return 0;
@@ -321,15 +322,28 @@ int concurrent_list_pop(Node** head_ref){
     pthread_mutex_lock(&mutex_list);
     //printf("[WORKER %ld-ListPop] lock preso\n",pthread_self());
     //While the list doesn't containt an element wait for someone push a new one
-    while(*head_ref==NULL){
-        //printf("[WORKER %ld-ListPop] aspetto la condizione\n",pthread_self());
+    while((*head_ref)==NULL){
+        printf("[WORKER %ld-ListPop] aspetto la condizione, la lista e' vuota\n",pthread_self());
         pthread_cond_wait(&list_not_empty,&mutex_list);
-        //printf("[WORKER %ld-ListPop] mi sono svegliato\n",pthread_self());
+        printf("[WORKER %ld-ListPop] mi sono svegliato\n",pthread_self());
         fflush(stdout);
     }
+    printf("Prima di estrarre\n");
+    list_print(*head_ref);
+    fflush(stdout);
+
     //Extraction of the element at the top of the list
-    Node* extracted= *head_ref;
+    Node* extracted= (*head_ref);
+    if(extracted==NULL){    
+        printf("ESTRATTO NULLO\n");
+    }
+    
     (*head_ref)=(*head_ref)->next;
+
+    printf("Dopo aver estratto\n");
+    list_print(*head_ref);
+    fflush(stdout);
+
     pthread_mutex_unlock(&mutex_list);
     //printf("[WORKER %ld-ListPop] lock rilasciato\n",pthread_self());
     

@@ -18,7 +18,9 @@
                 fprintf(stderr,"Errore nella scrittura dell'evento nel file di log"); \
             } \
 }
-#define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); exit(errno);}
+#define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); return -1;}
+#define SYSCALL_VOID(r,c,e) if((r=c)==-1) {perror(e); return;}
+#define SYSCALL_RESPONSE(w,c,e) if((w=c)==-1) {perror(e); r.code=-1; sprintf(r.message,"Errore!");}
 /*-----Parametri di configurazione del server-----*/
 char config_file_path[128]; //path del file testuale di configurazione
 int n_workers; // numero thread workers del modello Manager-Worker
@@ -85,7 +87,7 @@ int DestroyStorage();
 pthread_t* threadpool;
 IntLinkedList queue;
 
-
+/*Funzioni per evitare scritture/letture parziali*/
 ssize_t readn(int fd, void *ptr, size_t n);
 ssize_t writen(int fd, void *ptr, size_t n);
 

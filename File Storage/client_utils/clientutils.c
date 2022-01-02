@@ -180,7 +180,7 @@ int files_in_directory(file_name** head,char* dirname){
         }
         if(S_ISDIR(c.st_mode)){ //Se e' una directory ricorro
             if(!isdot(currentfile->d_name)){
-		        printf("%s e' una cartella, ricorro\n",currentfile->d_name);
+		        //printf("%s e' una cartella, ricorro\n",currentfile->d_name);
 	            files_in_directory(head,currentfile->d_name);
 	            chdir("..");
 	        }
@@ -193,7 +193,7 @@ int files_in_directory(file_name** head,char* dirname){
         }
         currentfile=readdir(radix);
     }
-    //chdir("..");
+
     if(closedir(radix)==-1){
         fprintf(stderr,"Errore nella chiusura della cartella %s\n",dirname);
         return -1;
@@ -206,10 +206,6 @@ int n_files_in_directory(file_name** head,char* dirname,int num){
         fprintf(stderr,"Errore cambiando la cartella\n");
         return -1;
     }
-    /*
-    char cwd[128];
-    getcwd(cwd,sizeof(cwd));
-    printf("INIZIO -> CWD: %s Dirname %s Num %d\n",cwd,dirname,num);*/
 
     //Apertura cartella
     DIR* radix=opendir(".");

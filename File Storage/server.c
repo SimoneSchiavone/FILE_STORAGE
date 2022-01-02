@@ -12,6 +12,7 @@
 #include <signal.h>
 
 #define UNIX_PATH_MAX 108
+#define SYSCALL_VOID_(r,c,e) if((r=c)==-1) {perror(e); printf("#ERRORE#\n"); continue;}
 #define CHECKRETURNVALUE(r,command,e,t) if((r=command)!=0) {perror(e); t;}
 #define MAX_FD(a) if(a>fd_max) fd_max=a;
 
@@ -119,6 +120,7 @@ int main(){
     FD_SET(signal_to_server[0],&set);
 
     int active_connections=0; //numero di connessioni attive
+    int connections_number=0;
     int max_active_connections=0; //numero massimo di connessioni contemporanee attive
     int graceful_term=0; //terminazione graceful dopo SIGHUP
 
@@ -162,9 +164,10 @@ int main(){
                         int ok=1;
                         SYSCALL(ctrl,writen(connection_fd,&ok,sizeof(int)),"Errore in scrittura del bit di accettazione");
                         active_connections++;
+                        connections_number++;
                         max_active_connections= (max_active_connections<active_connections) ? active_connections : max_active_connections;
                         printf("[Server_Main] Accettata una connessione sul fd %d - Connessioni attive %d\n",connection_fd,active_connections);
-                        LOGFILEAPPEND("[MAIN] Accettata una connessione sul fd %d\n",connection_fd);
+                        LOGFILEAPPEND("[MAIN] Accettata una connessione sul fd %d - Connessioni attive %d\n",connection_fd,active_connections);
                         FD_SET(connection_fd,&set);
                         MAX_FD(connection_fd);
                     }
@@ -181,7 +184,9 @@ int main(){
                     if(finished){
                         printf("[Server_Main] Il client sul fd %d ha eseguito una operazione ed e' TERMINATO\n",received_fd);
                         FD_CLR(received_fd,&set);
-                        Search_New_Max_FD(set,fd_max);
+                        if(received_fd==fd_max)
+                            fd_max=Search_New_Max_FD(set,fd_max);
+                        printf("Il nuovo massimo e' %d\n",fd_max);
                         int e;
                         SYSCALL(e,close(received_fd),"Errore nella chiusura del fd restituito dal worker");
                         active_connections--;
@@ -202,7 +207,7 @@ int main(){
                         LOGFILEAPPEND("[MAIN] Ho ricevuto un segnale di terminazione immediata, esco");
                         goto exit;
                     }
-                    if(stop==2){ //Terminazione graceful
+                    if(stop==2){ //Terminazione graceful (continuo a servire i client gia' connessi)
                         graceful_term=1;
                         printf("[Server_Main] Ho ricevuto un segnale di terminazione graceful\n");
                         LOGFILEAPPEND("[MAIN] Ho ricevuto un segnale di terminazione graceful\n");
@@ -258,7 +263,7 @@ int main(){
     max_data_num= (max_data_num == -1) ? 0 : max_data_num;
     max_data_size= (max_data_size == -1) ? 0 : max_data_size;
     float MBmax=((float)max_data_size)/1000000;
-    printf("Numero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,max_active_connections);
+    printf("Numero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero di connessioni accettate %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,connections_number,max_active_connections);
     LOGFILEAPPEND("STATISTICHE FINALI\nNumero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,max_active_connections);
     LOGFILEAPPEND("Server spento!\n");
 
@@ -271,7 +276,15 @@ int main(){
     return 0;    
 }
 
-//Procedura che viene eseguita da ogni thread worker del thread pool
+/*Procedura che viene eseguita da ogni thread worker del thread pool:
+il worker preleva un fd di un client pronto ad eseguire una certa operazione da una lista
+opportunamente sincronizzata; l'operazione richiesta e' rappresentata da un numero intero che viene
+opportunamente interpretato dalla funzione ExecuteRequest. Dopo l'esecuzione dell'operazione il 
+worker invia al server tramite la pipe di comunicazione il file descriptor servito ed un bit
+che indica il termine delle operazioni per quel client (che quindi non sara' piu' inserito
+nella lista di lavoro). Se il worker estrae un file descriptor '-1', inserito nella coda di
+lavoro dal signal handler thread, termina la sua esecuzione.*/
+
 void* WorkerFun(void* p){
     printf("[WORKER %ld] Ho iniziato la mia esecuzione!\n",pthread_self());
     //Pipe di comunicazione worker to master
@@ -291,7 +304,8 @@ void* WorkerFun(void* p){
         }else{
             //lettura del codice operazione ricevuto dal client
             int operation; 
-            SYSCALL(ctrl,readn(current_fd,&operation,sizeof(int)),"Errore nella 'read' dell'operazione");
+            printf("Lettura dell'operazione sul fd %d\n",current_fd);
+            SYSCALL_VOID_(ctrl,readn(current_fd,&operation,sizeof(int)),"Errore nella 'read' dell'operazione");
             LOGFILEAPPEND("[WORKER-%ld]\nHo ricevuto la seguente richiesta:%d\n",pthread_self(),operation);
 
             //esecuzione dell'operazione richiesta
@@ -310,13 +324,13 @@ void* WorkerFun(void* p){
             }
 
             //invio al server il fd servito
-            SYSCALL(ctrl,writen(pipe_fd,&current_fd,sizeof(int)),"Errore nella 'write' del fd sulla pipe");
+            SYSCALL_VOID_(ctrl,writen(pipe_fd,&current_fd,sizeof(int)),"Errore nella 'write' del fd sulla pipe");
             if(op_return==1){ //il client ha terminato le operazioni 
                 int w=1;
-                SYSCALL(ctrl,writen(pipe_fd,&w,sizeof(int)),"Errore nella 'write' del flag sulla pipe");
+                SYSCALL_VOID_(ctrl,writen(pipe_fd,&w,sizeof(int)),"Errore nella 'write' del flag sulla pipe");
             }else{ //il client non ha terminato le operazioni
                 int w=0;
-                SYSCALL(ctrl,writen(pipe_fd,&w,sizeof(int)),"Errore nella 'write' del flag sulla pipe");
+                SYSCALL_VOID_(ctrl,writen(pipe_fd,&w,sizeof(int)),"Errore nella 'write' del flag sulla pipe");
             }
         }
     }
@@ -326,7 +340,11 @@ void* WorkerFun(void* p){
     return NULL;
 }
 
-//Procedura che viene eseguita dal signal handler thread
+/*Procedura che viene eseguita dal signal handler thread. In caso di ricezione di un segnale
+di terminazione immediata, cioe' sigint o sigquit, il thread invia al server tramite una pipe
+di comunicazione un bit '1' e termina immediatamente. In caso di ricezione di un segnale di 
+terminazione graceful il thread invia al server tramite una pipe di comunicazione un bit '2' e 
+termina immediatamente*/
 void* SignalHandlerFun(void* arg){
     signal_handler_thread_arg* a=(signal_handler_thread_arg*)arg;
     sigset_t* set=a->set;
@@ -344,7 +362,7 @@ void* SignalHandlerFun(void* arg){
                 fflush(stdout);
                 //notifico il server della ricezione di un segnale di terminazione immediata
                 int received_a_signal=1;
-                SYSCALL(ret,writen(a->pipe,&received_a_signal,sizeof(int)),"Errore nella 'write' del fd sulla pipe");
+                SYSCALL_VOID_(ret,writen(a->pipe,&received_a_signal,sizeof(int)),"Errore nella 'write' del flag segnale sulla pipe");
                 printf("SignalHandlerThread-> Ho inviato la segnalazione al server tramite pipe\n");
                 //inserimento in lista di tanti '-1' quanti sono i workers in modo da farli terminare
                 if(concurrent_list_push_terminators(&queue,n_workers)==-1){
@@ -358,7 +376,7 @@ void* SignalHandlerFun(void* arg){
                 fflush(stdout);
                 //notifico il server della ricezione di un segnale di terminazione graceful
                 int received_a_signal=2;
-                SYSCALL(ret,writen(a->pipe,&received_a_signal,sizeof(int)),"Errore nella 'write' del fd sulla pipe");
+                SYSCALL_VOID_(ret,writen(a->pipe,&received_a_signal,sizeof(int)),"Errore nella 'write' del flag segnale sulla pipe");
                 printf("SignalHandlerThread-> Ho inviato la segnalazione al server tramite pipe\n");
                 condition=0;
                 break;
@@ -367,7 +385,6 @@ void* SignalHandlerFun(void* arg){
                 break;
         }
     }
-
     close(a->pipe);
     printf("Signal Handler Thread TERMINATO\n");
     fflush(stdout);

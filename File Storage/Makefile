@@ -1,12 +1,15 @@
 CC = gcc
-CFLAGS = -Wall -pedantic-errors -Werror -g
+CFLAGS = -Wall -pedantic-errors -g
 PTHREADS = -lpthread
-.PHONY = all clear test1 pippo
+.PHONY = all clear test1 test2 test3 result_clean
 
 client_modules = client_utils
 server_modules = server_utils
+txt_files_dir = txt
+test_dir = test
 server_dependecies = $(server_modules)/data_structures.o $(server_modules)/serverutils.o server.c
 client_dependecies = $(client_modules)/clientutils.c $(client_modules)/FileStorageAPILib.a client.c
+
 
 all: server client
 
@@ -28,20 +31,35 @@ $(client_modules)/%.o: $(client_modules)/%.c $(client_modules)/%.h
 
 #rimuove tutti i file testuali tranne quello di configurazione
 clean:
-	-rm -f -v server client *.sock *~ $(server_modules)/*.o $(client_modules)/*.o $(client_modules)/*.a Espulsi/* Letti/*
+	-rm -f -v server client *.sock *~ $(server_modules)/*.o $(client_modules)/*.o $(client_modules)/*.a Espulsi/* Letti/* $(txt_files_dir)/journal.txt
 	-rmdir Espulsi Letti
 test1:
 	@clear
 	@echo "----------INIZIO TEST #1----------"
-	cp test/test1/test1.txt txt/config_file.txt
-	@bash test/test1/test1.sh
+	cp $(test_dir)/test1/test1.txt $(txt_files_dir)/config_file.txt
+	@bash $(test_dir)/test1/test1.sh
 	@echo "----------FINE TEST #1----------"
 	@./statistiche.sh
 
 test2:
 	@clear
 	@echo "----------INIZIO TEST #2----------"
-	cp test/test2/test2.txt txt/config_file.txt
-	@bash test/test2/test2.sh
+	cp $(test_dir)/test2/test2.txt $(txt_files_dir)/config_file.txt
+	@bash $(test_dir)/test2/test2.sh
 	@echo "----------FINE TEST #2----------"
-	./statistiche.sh
+	@./statistiche.sh
+
+test3:
+	@clear
+	@echo "----------INIZIO TEST #3----------"
+	cp $(test_dir)/test3/test3.txt $(txt_files_dir)/config_file.txt
+	@bash $(test_dir)/test3/test3.sh
+	@echo "----------FINE TEST #3----------"
+	@./statistiche.sh
+
+result_clean:
+	@echo "----------RESULT CLEAN----------"
+	-rm -f -v Espulsi/* Letti/* $(txt_files_dir)/journal.txt
+	-rmdir Espulsi Letti
+	@echo "----------FINE RESULT CLEAN----------"
+
