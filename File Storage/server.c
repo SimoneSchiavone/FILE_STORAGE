@@ -124,6 +124,9 @@ int main(){
     int max_active_connections=0; //numero massimo di connessioni contemporanee attive
     int graceful_term=0; //terminazione graceful dopo SIGHUP
 
+    char fd_packet[7];
+    memset(fd_packet,'\0',7);
+
     while(1){
         printf("[Server_Main] Server in attesa ...\n");
         //Copio il set nella variabile per la select
@@ -176,10 +179,18 @@ int main(){
                     int received_fd;
                     int byte_read;
                     int finished;
+
                     //leggo il fd restituito dal thread worker
-                    SYSCALL(byte_read,readn(wtm_pipe[0],&received_fd,sizeof(int)),"Errore nella 'read' del fd restituito dal worker");
-                    //leggo il bit di terminazione restituito dal thread worker
-                    SYSCALL(byte_read,readn(wtm_pipe[0],&finished,sizeof(int)),"Errore nella 'read' del flag di terminazione client proveniente dal worker");
+                    SYSCALL(byte_read,readn(wtm_pipe[0],&fd_packet,7),"Errore nella 'read' del fd restituito dal worker");
+                    printf("MAIN: Il worker mi ha restituito il fd %s\n",fd_packet);
+                    if(strncmp(fd_packet,"C:",2)==0)
+                        finished=0;
+                    else
+                        finished=1;
+                    
+                    char* savefd;
+                    strtok_r(fd_packet,":",&savefd);
+                    received_fd=strtol(strtok_r(NULL,":",&savefd),NULL,10);
                     //il client ha terminato le operazioni
                     if(finished){
                         printf("[Server_Main] Il client sul fd %d ha eseguito una operazione ed e' TERMINATO\n",received_fd);
@@ -198,7 +209,7 @@ int main(){
                         FD_SET(received_fd,&set);
                         MAX_FD(received_fd);
                     }
-
+                    memset(fd_packet,'\0',7);
                 }else if(i==signal_to_server[0]){ //e' la pipe di comunicazione con il signal handler thread
                     int stop;
                     SYSCALL(ctrl,readn(signal_to_server[0],&stop,sizeof(int)),"Errore nella 'read' del fd restituito dal worker");
@@ -263,7 +274,7 @@ int main(){
     max_data_num= (max_data_num == -1) ? 0 : max_data_num;
     max_data_size= (max_data_size == -1) ? 0 : max_data_size;
     float MBmax=((float)max_data_size)/1000000;
-    printf("Numero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero di connessioni accettate %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,connections_number,max_active_connections);
+    printf("Numero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero di connessioni accettate: %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,connections_number,max_active_connections);
     LOGFILEAPPEND("STATISTICHE FINALI\nNumero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,max_active_connections);
     LOGFILEAPPEND("Server spento!\n");
 
@@ -292,6 +303,8 @@ void* WorkerFun(void* p){
     int condition=1;
     int ctrl;
     int op_return; //codice di ritorno dell'operazione eseguita
+    char fd_packet[7];
+    memset(fd_packet,'\0',7);
 
     while(condition){
         //Estraiamo un fd dalla coda
@@ -313,25 +326,25 @@ void* WorkerFun(void* p){
             //valutazione esito operazione
             switch(op_return){
                 case 0:
-                    printf("[WORKER %ld] Operazione %d andata a buon fine\n\n\n",pthread_self(),operation);
+                    printf("[WORKER %ld-Fd %d] Operazione %d andata a buon fine\n\n\n",pthread_self(),current_fd,operation);
                     break;
                 case 1:
-                    printf("[WORKER %ld] Operazione %d andata a buon fine, ESCO\n\n\n",pthread_self(),operation);
+                    printf("[WORKER %ld-Fd %d] Operazione %d andata a buon fine, ESCO\n\n\n",pthread_self(),current_fd,operation);
                     break;
                 case -1:
-                    printf("[WORKER %ld] Operazione %d fallita\n\n",pthread_self(),operation);
+                    printf("[WORKER %ld-Fd %d] Operazione %d fallita\n\n",pthread_self(),current_fd,operation);
                     break;
             }
-
+            
             //invio al server il fd servito
-            SYSCALL_VOID_(ctrl,writen(pipe_fd,&current_fd,sizeof(int)),"Errore nella 'write' del fd sulla pipe");
             if(op_return==1){ //il client ha terminato le operazioni 
-                int w=1;
-                SYSCALL_VOID_(ctrl,writen(pipe_fd,&w,sizeof(int)),"Errore nella 'write' del flag sulla pipe");
+                sprintf(fd_packet,"F:%d",current_fd);
+                SYSCALL_VOID_(ctrl,writen(pipe_fd,&fd_packet,7),"Errore nella 'write' del flag sulla pipe");
             }else{ //il client non ha terminato le operazioni
-                int w=0;
-                SYSCALL_VOID_(ctrl,writen(pipe_fd,&w,sizeof(int)),"Errore nella 'write' del flag sulla pipe");
+                sprintf(fd_packet,"C:%d",current_fd);
+                SYSCALL_VOID_(ctrl,writen(pipe_fd,&fd_packet,7),"Errore nella 'write' del flag sulla pipe");
             }
+            memset(fd_packet,'\0',7);
         }
     }
     
@@ -369,6 +382,7 @@ void* SignalHandlerFun(void* arg){
                     printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
                 }
                 condition=0;
+                hash_dump(stdout,storage,print_stored_file_info);
                 break;
             }
             case SIGHUP:{
