@@ -19,8 +19,8 @@
 /*Struct che incapsula gli argomenti da passare al thread gestore dei segnali cioe'
 la maschera ed il pipe di comunicazione per l'invio di un intero di notifica al server*/
 typedef struct signal_handler_thread_arg{
-        int pipe;
-        sigset_t* set;
+    int pipe;
+    sigset_t* set;
 }signal_handler_thread_arg;
 
 int Search_New_Max_FD(fd_set set,int maxfd);
@@ -36,14 +36,14 @@ int main(){
     Welcome();
 
     //-----Configurazione del server-----
-    printf("[Server_Main] Default Configuration: ");
+    printf("[Server_Main] Default Configuration -> ");
     DefaultConfiguration();
     PrintConfiguration();
     if(ScanConfiguration(config_file_path)==-1){
         printf("[Server_Main] Errore fatale nella scansione del file di configurazione\n");
         return -1;
     }
-    printf("[Server_Main] Starting Configuration: ");
+    printf("[Server_Main] Starting Configuration -> ");
     PrintConfiguration();
 
     //-----Inizializzazione dello Storage
@@ -215,7 +215,7 @@ int main(){
                     SYSCALL(ctrl,readn(signal_to_server[0],&stop,sizeof(int)),"Errore nella 'read' del fd restituito dal worker");
                     if(stop==1){ //Terminazione immediata
                         printf("[Server_Main] Ho ricevuto un segnale di terminazione immediata, esco\n");
-                        LOGFILEAPPEND("[MAIN] Ho ricevuto un segnale di terminazione immediata, esco");
+                        LOGFILEAPPEND("[MAIN] Ho ricevuto un segnale di terminazione immediata, esco\n");
                         goto exit;
                     }
                     if(stop==2){ //Terminazione graceful (continuo a servire i client gia' connessi)
@@ -295,7 +295,6 @@ worker invia al server tramite la pipe di comunicazione il file descriptor servi
 che indica il termine delle operazioni per quel client (che quindi non sara' piu' inserito
 nella lista di lavoro). Se il worker estrae un file descriptor '-1', inserito nella coda di
 lavoro dal signal handler thread, termina la sua esecuzione.*/
-
 void* WorkerFun(void* p){
     printf("[WORKER %ld] Ho iniziato la mia esecuzione!\n",pthread_self());
     //Pipe di comunicazione worker to master
@@ -382,7 +381,6 @@ void* SignalHandlerFun(void* arg){
                     printf("[SignalHandler] Errore nell'inserimento dei terminatori\n");
                 }
                 condition=0;
-                hash_dump(stdout,storage,print_stored_file_info);
                 break;
             }
             case SIGHUP:{

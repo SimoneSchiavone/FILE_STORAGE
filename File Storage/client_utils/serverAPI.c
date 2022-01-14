@@ -55,8 +55,11 @@ writen(int fd, void *ptr, size_t n) {
 }
 
 /*Funzione che apre una connessione AF_UNIX al socket file sockname. Se il server non accetta
-immediatamente la richiesta di connessione, si effettua una nuova richiesta dopo msec millisecondi
-fino allo scadere del tempo assoluto 'abstime*/
+immediatamente la richiesta di connessione, si effettua una nuova richiesta dopo 'msec' millisecondi
+fino allo scadere del tempo assoluto 'abstime'. Quando la connessione è stata stabilita il server
+invia al client un intero di autorizzazione 'accepted'. Se 'accepted' e' uguale a 0 il server ha 
+respinto la nostra richiesta di connessione percio' si restituisce un errore. In caso di errore
+la funzione restituisce -1, 0 altrimenti.*/
 int openConnection(const char* sockname, int msec, const struct timespec abstime){
     //Controllo parametri
     if(sockname==NULL){
@@ -105,6 +108,8 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
     return -1;
 }
 
+/*Funzione che apre una chiude la connessione AF_UNIX al socket file sockname. In caso di errore
+la funzione restituisce -1, 0 altrimenti.*/
 int closeConnection(const char* sockname){
     //Dobbiamo inviare la richiesta di comando 12 al server
     //Invio il codice comando
@@ -119,6 +124,19 @@ int closeConnection(const char* sockname){
     return EXIT_SUCCESS;
 }
 
+/*Funzione che apre il file 'pathname' nel server. Se viene specificato il flag 'O_CREATE|O_LOCK il 
+file andra' creato nello storage in modalita' locked. Se viene specificato solamente il flag 'O_CREATE'
+il file dovra' essere creato nello storage. Se viene specificato solamente il flag 'O_LOCK' il file
+viene aperto in modalita' locked. La funzione restituisce 0 se l'operazione e' andata a buon fine, -1 
+altrimenti. 
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 3
+        -la dimensione del pathname ed il pathname
+        -il flag O_CREATE ed il flag O_LOCK
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+*/
 int openFile(const char* pathname,int flags){
     char* path=NULL;
     path=realpath(pathname,path);
@@ -180,6 +198,19 @@ char* extract_file_name(char* original_path){
     return extracted;
 }
 
+/*Funzione che permette di leggere il file 'pathname' dal server. Il contenuto del file sara' memorizzato
+nel buffer puntato da 'buf' ed il valore puntato da 'size' conterra' la dimensione del contenuto letto.
+Se e' stata specificata una cartella per la memorizzazione dei file letti, il file letto sara'
+scritto sul disco in tale destinazione. La funzione restituisce 0 in caso di successo, -1 in caso
+di fallimento.
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 4
+        -la dimensione del pathname ed il pathname
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+        -se la risposta e' positiva allora riceve dimensione del contenuto e contenuto
+*/
 int readFile(const char* pathname,void** buf,size_t* size){
     if(!pathname || !buf || !size){
         errno=EINVAL;
@@ -233,7 +264,6 @@ int readFile(const char* pathname,void** buf,size_t* size){
         SYSCALL(ctrl,readn(fd_connection,(*buf),dim),"Errore nella 'read' del contenuto");
         IF_PRINT_ENABLED(printf("[readFile] Contenuto di %s: dimensione %d bytes\n %s\n",pathname,dim,(char*)*buf););
 
-        //buf=(void**)&content;
         *size=(size_t)dim;
 
         //Se e' stata specificata una cartella di memorizzazione scrivo il file
@@ -294,7 +324,6 @@ int readFile(const char* pathname,void** buf,size_t* size){
             free(save_pathname);
         }
 
-        //free(content);
         free(response);
         return EXIT_SUCCESS;
     }
@@ -302,6 +331,21 @@ int readFile(const char* pathname,void** buf,size_t* size){
     return -1;
 }
 
+/*Funzione che permette di leggere al piu' 'n' file dal server.I file letti saranno scritti sul disco
+nella cartella specificata dall'opzione -d. Se 'n' e' uguale a zero viene richiesta al server la lettura
+di tutti i file contenuti nello storage. La funzione restituisce il numero di file letti
+in caso di successo, -1 in caso di fallimento.
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 5
+        -il numero di file richiesti ('n')
+<-- Il client riceve dal server:
+        -il numero di file che saranno ricevuti ('nfiles')
+        -per ogni file che deve essere letto ricevera':
+            -dimensione del pathname e pathname
+            -dimensione del contenuto e contenuto
+        -dimensione della risposta e risposta
+*/
 int readNFiles(int n, char* dirname){
     //Controllo parametro dirname
     if(!dirname){
@@ -350,7 +394,7 @@ int readNFiles(int n, char* dirname){
             return -1;
         }
         SYSCALL(ctrl,readn(fd_connection,pathname,dim),"Errore nella 'read' del pathname");
-        printf("Dimensione del pathname ricevuta %d per %s\n",dim,pathname);
+        //printf("Dimensione del pathname ricevuta %d per %s\n",dim,pathname);
 
         //Leggo dimensione del contenuto
         SYSCALL(ctrl,readn(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione del contenuto");
@@ -361,7 +405,7 @@ int readNFiles(int n, char* dirname){
             return -1;
         }
         SYSCALL(ctrl,readn(fd_connection,content,dim),"Errore nella 'read' del contenuto");
-        printf("Dimensione del contenuto ricevuta %d per %d\n",ctrl,dim);
+        //printf("Dimensione del contenuto ricevuta %d per %d\n",ctrl,dim);
         IF_PRINT_ENABLED(printf("[readNFiles] File %d -> Contenuto di %s di dimensione %d bytes\n %s\n",i+1,pathname,dim,content););
 
         //Scrivo il nuovo file
@@ -400,11 +444,34 @@ int readNFiles(int n, char* dirname){
         return -1;
     }
     SYSCALL(ctrl,readn(fd_connection,response,dim),"Errore nella 'read' della risposta");
-    IF_PRINT_ENABLED(printf("[readNFiles]%s\n",response););
+    IF_PRINT_ENABLED(printf("[readNFiles] %s\n",response););
     free(response);
     return nfiles;
 }
 
+/*Funzione che permette di scrivere il contenuto del file 'pathname' sullo storage.
+La funzione restituisce 0 in caso di successo e -1 in caso di fallimento. Il parametro 'dirname'
+se non e' nullo specifica il nome della cartella dove memorizzare i file eventualmente espulsi dal 
+server in conseguenza a capacity misses. 
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 6
+        -dimensione del pathname e pathname del file da scrivere
+        -dimensione del contenuto e contenuto del file da scrivere
+        -flag di invio di file espulsi (1 se 'dirname' non e' nullo, 0 altrimenti)
+<-- Il client riceve dal server:
+        -flag di autorizzazione a procedere; se 0 abortiamo l'operazione
+
+Finche' c'e' qualche file espulso dal server da recuperare:[
+    <-- Il client riceve dal server:
+            -flag di ricezione di nuovo file espulso; se 0 usciamo dal "ciclo" di ricezione
+            -dimensione del pathname e pathname del file espulso
+            -dimensione del contenuto e contenuto del file espulso
+]
+
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+*/
 int writeFile(char* pathname,char* dirname){
     //Controllo parametro pathname
     if(pathname==NULL){
@@ -412,7 +479,7 @@ int writeFile(char* pathname,char* dirname){
         IF_PRINT_ENABLED(fprintf(stderr,"[writeFile] Errore in writefile\n"););
         return -1;
     }
-    //printf("DEBUG, Parametri OK\n");
+
     char* path=NULL;
     path=realpath(pathname,path);
     if(path==NULL){
@@ -420,7 +487,7 @@ int writeFile(char* pathname,char* dirname){
             IF_PRINT_ENABLED(printf("Il file %s non esiste\n",pathname););
         return -1;
     }
-    //printf("DEBUG, Realpath OK\n");
+    
     //Apertura del file
     FILE* to_send;
     if((to_send=fopen(pathname,"r"))==NULL){
@@ -428,14 +495,11 @@ int writeFile(char* pathname,char* dirname){
         free(path);
         return -1;
     }
-    //printf("DEBUG, Apertura file OK\n");
-    //int size
     int ctrl;
 
     //Alloco un buffer per la lettura del file
     fseek(to_send,0,SEEK_END);
     int filedim=ftell(to_send);
-    //printf("DEBUG, La ftell ha restituito %d\n",filedim);
     char* read_file=(char*)calloc(filedim+1,sizeof(char)); //+1 per il carattere terminatore
     if(read_file==NULL){
         IF_PRINT_ENABLED(fprintf(stderr,"[writeFile] Errore nella writeFile del file %s\n",pathname););
@@ -445,8 +509,6 @@ int writeFile(char* pathname,char* dirname){
     }
     //Leggo il file
     fseek(to_send,0,0);
-    //int n=fread(read_file,sizeof(char),filedim,to_send);
-
     fread(read_file,sizeof(char),filedim,to_send);
     read_file[filedim]='\0';
     //printf("DEBUG, Ho letto %d bytes con la fread e la dimensione e' %d con carattere terminatore\n",n,filedim+1);
@@ -495,7 +557,7 @@ int writeFile(char* pathname,char* dirname){
 
     //Ciclo per l'acquisizione degli eventuali file espulsi
     if(dirname){ 
-        int expelled_file_to_receive,first_time=1;
+        int expelled_file_to_receive;
         DIR* destination=NULL;
         do{ 
             //Verifico se c'e' qualche file da ricevere
@@ -505,20 +567,15 @@ int writeFile(char* pathname,char* dirname){
                 goto read_1;
             }
                 
-            if(first_time){ //E' il primo file espulso, verifico se c'e' gia' la cartella di memorizzazione
-                //Verifico che dirname sia effettivamente una cartella
-                destination=opendir(dirname);
-                if(!destination){
-                    if(errno=ENOENT){ //Se la cartella non esiste la creo
-                        mkdir(dirname,0777);
-                        destination=opendir(dirname);
-                        IF_PRINT_ENABLED(printf("[WriteFile] Cartella per i file espulsi non trovata, la creo\n"););
-                        if(!destination){
-                            IF_PRINT_ENABLED(fprintf(stderr,"[writeFile] Errore nell'apertura della cartella di destinazione dei file espulsi, i file ricevuti saranno eliminati\n"););
-                        }
+            if(!destination){
+                if(errno=ENOENT){ //Se la cartella non esiste la creo
+                    mkdir(dirname,0777);
+                    destination=opendir(dirname);
+                    IF_PRINT_ENABLED(printf("[WriteFile] Cartella per i file espulsi non trovata, la creo\n"););
+                    if(!destination){
+                        IF_PRINT_ENABLED(fprintf(stderr,"[writeFile] Errore nell'apertura della cartella di destinazione dei file espulsi, i file ricevuti saranno eliminati\n"););
                     }
                 }
-                first_time=0;
             }
                 
             int dim_name,dim_content;
@@ -567,6 +624,11 @@ int writeFile(char* pathname,char* dirname){
                 return -1;
             }
 
+            if(destination){
+                if(closedir(destination)==-1){
+                    IF_PRINT_ENABLED(fprintf(stderr,"[appendToFile] Errore nella 'WriteFile' del file %s\n",pathname););
+                }
+            }
             chdir(working_directory);
         }while(expelled_file_to_receive);
 
@@ -602,6 +664,15 @@ int writeFile(char* pathname,char* dirname){
     }
 }
 
+/*Funzione che permette di bloccare il file 'pathname'. Restituisce -1 in caso di errore, 0
+altrimenti.
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 8
+        -dimensione del pathname e pathname del file da bloccare
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+*/
 int lockFile(char* pathname){
     //Controllo parametro pathname
     if(!pathname){
@@ -648,6 +719,15 @@ int lockFile(char* pathname){
     }
 }
 
+/*Funzione che permette di sbloccare il file 'pathname'. Restituisce -1 in caso di errore, 0
+altrimenti.
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 9
+        -dimensione del pathname e pathname del file da sbloccare
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+*/
 int unlockFile(char* pathname){
     if(!pathname){
         errno=EINVAL;
@@ -693,6 +773,15 @@ int unlockFile(char* pathname){
     }
 }
 
+/*Funzione che permette di rimuovere il file 'pathname' dallo storage.
+Restituisce -1 in caso di errore, 0 altrimenti.
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 11
+        -dimensione del pathname e pathname del file da rimuovere
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+*/
 int removeFile(char* pathname){
     if(!pathname){
         errno=EINVAL;
@@ -738,6 +827,30 @@ int removeFile(char* pathname){
     }
 }
 
+/*Funzione che permette di appendere del contenuto al file 'pathname' sullo storage.
+La funzione restituisce 0 in caso di successo e -1 in caso di fallimento. Il parametro 'dirname'
+se non e' nullo specifica il nome della cartella dove memorizzare i file eventualmente espulsi dal 
+server in conseguenza a capacity misses. Il parametro 'buf' contiene un riferimento al buffer
+del contenuto da appendere, il parametro 'size' contiene la dimensione del contenuto da appendere.
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 7
+        -dimensione del pathname e pathname del file da scrivere
+        -dimensione del contenuto e contenuto del file da scrivere
+        -flag di invio di file espulsi (1 se 'dirname' non e' nullo, 0 altrimenti)
+<-- Il client riceve dal server:
+        -flag di autorizzazione a procedere; se 0 abortiamo l'operazione
+
+Finche' c'e' qualche file espulso dal server da recuperare:[
+    <-- Il client riceve dal server:
+            -flag di ricezione di nuovo file espulso; se 0 usciamo dal "ciclo" di ricezione
+            -dimensione del pathname e pathname del file espulso
+            -dimensione del contenuto e contenuto del file espulso
+]
+
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+*/
 int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
     //Controllo parametro pathname
     if(pathname==NULL || buf==NULL){

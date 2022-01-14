@@ -13,14 +13,11 @@
 #include <sys/time.h>
 #include "data_structures.h"
 
-#define LOGFILEAPPEND(...){ \
-            if(LogFileAppend(__VA_ARGS__)!=0){ \
-                fprintf(stderr,"Errore nella scrittura dell'evento nel file di log"); \
-            } \
-}
+
 #define SYSCALL(r,c,e) if((r=c)==-1) {perror(e); return -1;}
 #define SYSCALL_VOID(r,c,e) if((r=c)==-1) {perror(e); return;}
 #define SYSCALL_RESPONSE(w,c,e) if((w=c)==-1) {perror(e); r.code=-1; sprintf(r.message,"Errore!");}
+
 /*-----Parametri di configurazione del server-----*/
 char config_file_path[128]; //path del file testuale di configurazione
 int n_workers; // numero thread workers del modello Manager-Worker
@@ -38,16 +35,16 @@ typedef struct stored_file{
 
     Node* opened_by; //lista di client che hanno aperto il file
     
-    struct timeval creation_time; //tempo di creazione, necessario per la politica FIFO
-    struct timeval last_operation; //tempo dell'ultima modifica
+    struct timeval creation_time; //tempo di creazione del file
+    struct timeval last_operation; //tempo dell'ultima operazione sul file
 
     int fd_holder; //fd della connessione del proprietario del file; Se -1 il file e' sbloccato
     pthread_mutex_t mutex_file; //lock del file
     pthread_cond_t is_unlocked; //variabile di condizione per l'attesa dello sblocco del file
 
-    int clients_waiting;
-    int to_delete;
-    pthread_cond_t is_deletable;
+    int clients_waiting; //numero di client in attesa di acquisire la lock sul client
+    int to_delete; //flag che indica che il file deve essere eliminato
+    pthread_cond_t is_deletable; //variabile di condizione per attesa delle condizioni necessarie per l'eliminazione
 }stored_file;
 void print_stored_file_info(FILE* stream,void* file);
 
@@ -55,6 +52,11 @@ void print_stored_file_info(FILE* stream,void* file);
 FILE* logfile;
 pthread_mutex_t mutex_logfile; //mutex per l'acquisizione in mutua esclusione del file di log
 int LogFileAppend(char* event, ...);
+#define LOGFILEAPPEND(...){ \
+            if(LogFileAppend(__VA_ARGS__)!=0){ \
+                fprintf(stderr,"Errore nella scrittura dell'evento nel file di log"); \
+            } \
+}
 
 /*-----Messaggio di benvenuto-----*/
 void Welcome();
@@ -74,18 +76,18 @@ typedef struct response{
 
 /*-----Hash Table Storage-------*/
 hash_table_t* storage;
-pthread_mutex_t mutex_storage;
-int not_empty_files_num;
-int data_size;
-int max_data_size;
-int max_data_num;
-int nr_of_replacements;
+pthread_mutex_t mutex_storage; //mutex sullo storage
+int not_empty_files_num; //numero di file non vuoti
+int data_size; //dimensione complessiva dei dati memorizzati
+int max_data_size; //dimensione complessiva massima dei dati memorizzati
+int max_data_num; //numero massimo di file memorizzati
+int nr_of_replacements; //numero di attivazioni dell'algoritmo di rimpiazzamento
 int InitializeStorage();
 int DestroyStorage();
 
 /*-----Thread Pool-----*/
-pthread_t* threadpool;
-IntLinkedList queue;
+pthread_t* threadpool; //array di thread worker
+IntLinkedList queue; //lista di lavoro dei worker
 
 /*Funzioni per evitare scritture/letture parziali*/
 ssize_t readn(int fd, void *ptr, size_t n);

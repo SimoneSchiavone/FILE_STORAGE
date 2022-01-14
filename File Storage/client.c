@@ -473,8 +473,6 @@ int main(int argc,char** argv){
                     error=1;
                     goto exit;
                 }
-                printf("Stampe ABILITATE\n");
-                printf("----------\n");
                 print_options=1;
                 break;
             }
@@ -612,8 +610,8 @@ void Execute_Requests(operation_node* request_list){
                 }else{
                     if(write_return==-1){ //fallimento write|append
                         printf("Operazione -w su %s FALLITA\n",curr->op->args[i]);
-                    }
-                    if(write_return==0){
+                        closeFile(curr->op->args[i]);
+                    }else{
                         if(closeFile(curr->op->args[i])==0)
                             printf("Operazione -w su %s COMPLETATA\n",curr->op->args[i]);
                         else
@@ -685,8 +683,8 @@ void Execute_Requests(operation_node* request_list){
                 }else{
                     if(write_return==-1){ //fallimento write|append
                         printf("Operazione -w su %s FALLITA\n",f->name);
-                    }
-                    if(write_return==0){
+                        closeFile(f->name);
+                    }else{
                         if(closeFile(f->name)==0)
                             printf("Operazione -w su %s COMPLETATA\n",f->name);
                         else
@@ -718,13 +716,12 @@ void Execute_Requests(operation_node* request_list){
                 }else{
                     if(read_return==-1){ //fallimento write|append
                         printf("Operazione -r su %s FALLITA\n",curr->op->args[i]);
+                        closeFile(curr->op->args[i]);
                     }else{
-                        if(read_return==0){
-                            if(closeFile(curr->op->args[i])==0)
-                                printf("Operazione -r su %s COMPLETATA\n",curr->op->args[i]);                
-                            else
-                                printf("Operazione -r su %s FALLITA\n",curr->op->args[i]); 
-                        }
+                        if(closeFile(curr->op->args[i])==0)
+                            printf("Operazione -r su %s COMPLETATA\n",curr->op->args[i]);                
+                        else
+                            printf("Operazione -r su %s FALLITA\n",curr->op->args[i]); 
                     }
                 }
                 printf("----------\n");
@@ -774,6 +771,7 @@ void Execute_Requests(operation_node* request_list){
                             printf("Operazione -l su %s FALLITA\n",curr->op->args[i]);
                         }
                     }else{
+                        closeFile(curr->op->args[i]);
                         printf("Operazione -l su %s FALLITA\n",curr->op->args[i]);
                     }
                 }
@@ -802,6 +800,7 @@ void Execute_Requests(operation_node* request_list){
                         }
                     }else{
                         printf("Operazione -u su %s FALLITA\n",curr->op->args[i]);
+                        closeFile(curr->op->args[i]);
                     }
                 }
                 printf("----------\n");
@@ -825,6 +824,7 @@ void Execute_Requests(operation_node* request_list){
                         printf("Operazione -c su %s COMPLETATA\n",curr->op->args[i]);
                     }else{
                         printf("Operazione -c su %s FALLITA\n",curr->op->args[i]);
+                        closeFile(curr->op->args[i]);
                     }
                 }
                 printf("----------\n");

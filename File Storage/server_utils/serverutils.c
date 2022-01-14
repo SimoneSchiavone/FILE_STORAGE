@@ -169,11 +169,12 @@ int LogFileAppend(char* format,...){
     time_t now=time(NULL);
     if(format==NULL)
         return -1;
+
+    pthread_mutex_lock(&mutex_logfile);
     fprintf(logfile,"--------------------\n");
     fprintf(logfile,"%s",ctime(&now));
     va_list list; //lista degli argomenti della funzione
     va_start(list,format);
-    pthread_mutex_lock(&mutex_logfile);
     vfprintf(logfile,format,list);
     /* The  functions  vprintf(), vfprintf(), vdprintf(), vsprintf(), vsnprintf() are equivalent
     to the functions printf(), fprintf(), dprintf(), sprintf(), snprintf(), respectively, except
@@ -489,6 +490,12 @@ int CanWeStoreAnotherFile(){
     return r;
 }
 
+/*Funzione che blocca il file di nome 'pathname' in modo che tutte le operazioni successive su quel
+file possano essere fatte solo dal client connesso sul file descriptor 'fd'. Il flag 'from_openFile'
+indica se l'invocazione del metodo e' richiesta dall'operazione OpenFile, in modo da evitare alcuni
+controlli. Restituisce un oggetto di tipo 'response' che avra' il campo 'code' uguale a zero se l'operazione
+e' andata a buon fine, -1 altrimenti. Il campo 'message' conterra' un messaggio che descrive l'esito
+dell'operazione */
 response LockFile(char* pathname,int fd,int from_openFile){
     response r;
     stored_file* found;
@@ -530,9 +537,11 @@ response LockFile(char* pathname,int fd,int from_openFile){
         found->clients_waiting++;
         while(found->fd_holder!=-1 && found->to_delete==0){ 
             //Finche' il file e' bloccato e non deve essere eliminato
-            printf("Client %d aspetta che il file si liberi!\n",fd);
+            printf("Client %d aspetta che il file %s si liberi!\n",fd,pathname);
             pthread_cond_wait(&found->is_unlocked,&found->mutex_file); //aspetto che sia libero
         }
+
+        printf("Client %d ha acquisito la lock sul file %s!\n",fd,pathname);
         found->clients_waiting--;
 
         if(!found->to_delete){
@@ -559,7 +568,12 @@ response LockFile(char* pathname,int fd,int from_openFile){
     
 }
 
-/*Richiesta di apertura o creazione di un file.*/
+/*Funzione che permette l'apertura e/o creazione del file di nome 'pathname'. Il flag 'o_create' settato
+ad 1 indica che file va creato nello storage. Il flag 'o_lock' settato ad 1 indica che il file va aperto in
+modalita' locked (cioe' solo il client connesso al fd 'fd_owner' puo' effettuare operazioni sul file 'pathname').
+La funzione restituisce un oggetto di tipo 'response' che avra' il campo 'code' uguale a zero se l'operazione
+e' andata a buon fine, -1 altrimenti. Il campo 'message' conterra' un messaggio che descrive l'esito
+dell'operazione.*/
 response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
     response r;
     r.code=0;
@@ -611,6 +625,7 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
             r.code=-1;
             sprintf(r.message,"Errore nella creazione del nuovo file\n");
             LOGFILEAPPEND("[Client %d] Errore nella OpenFile\n",fd_owner);
+            pthread_mutex_unlock(&mutex_storage);
             return r;
         }
 
@@ -766,6 +781,13 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
     return r;
 }
 
+/*Funzione che permette di scrivere il contenuto del file di nome 'pathname' sullo storage. Il parametro 'content'
+e' un riferimento ad un buffer contenente i dati da memorizzare; il parametro 'size' specifica la dimensione del
+contenuto che vogliamo scrivere per quel file; il parametro 'fd' descrive il fd del client che effettua l'operazione;
+il flag 'send_to_client' specifica se e' necessario inviare al client eventuali file espulsi dallo storage a causa
+di capacity misses. La funzione restituisce un oggetto di tipo 'response' che avra' il campo 'code' uguale a zero
+se l'operazione e' andata a buon fine, -1 altrimenti. Il campo 'message' conterra' un messaggio che descrive l'esito
+dell'operazione.*/
 response WriteFile(char* pathname,char* content,int size,int fd,int send_to_client){
     response r; 
     //Controllo parametro
@@ -886,6 +908,13 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
     return r;
 }
 
+/*Funzione che permette di appendere del contenuto al contenuto del file di nome 'pathname' sullo storage. Il parametro 
+'content_to_append' e' un riferimento ad un buffer contenente i dati da memorizzare; il parametro 'size' specifica la
+dimensione del contenuto che vogliamo appendere per quel file; il parametro 'fd' descrive il fd del client che effettua
+l'operazione; il flag 'send_to_client' specifica se e' necessario inviare al client eventuali file espulsi dallo storage 
+a causa di capacity misses. La funzione restituisce un oggetto di tipo 'response' che avra' il campo 'code' uguale a 
+zero se l'operazione e' andata a buon fine, -1 altrimenti. Il campo 'message' conterra' un messaggio che descrive l'esito
+dell'operazione.*/
 response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int send_to_client){
     response r; 
     //Controllo parametro
@@ -985,8 +1014,6 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
         
     }
 
-    
-
     //Faccio spazio nello storage solo per quanti bytes devo appendere cioe' size
     if(StorageUpdateSize(storage,size,fd,send_to_client,pathname)==-1){
         r.code=-1;
@@ -1031,6 +1058,11 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
     return r;
 }
 
+/*Funzione che permette di leggere il contenuto del file di nome 'pathname'. Se l'operazione e' andata a buon fine il 
+campo 'found' conterra' un puntatore alla locazione di memoria dove e' memorizzato il file, in modo da permettere
+la lettura del contenuto. La funzione restituisce un oggetto di tipo 'response' che avra' il campo 'code' uguale a
+zero se l'operazione e' andata a buon fine, -1 altrimenti. Il campo 'message' conterra' un messaggio che descrive
+l'esito dell'operazione.*/
 response ReadFile(char* pathname,stored_file** found,int fd){
     response r;
     //Verifichiamo se il file e' gia' presente nello storage
@@ -1073,6 +1105,10 @@ response ReadFile(char* pathname,stored_file** found,int fd){
     return r;
 }
 
+/*Funzione che permette di leggere il contenuto del file di al piu' 'n' file nello storage 'pathname'. Se n<=0
+viene inviato al client il contenuto di tutti i file memorizzati nello storage. La funzione restituisce un oggetto
+di tipo 'response' che avra' il campo 'code' uguale a zero se l'operazione e' andata a buon fine, -1 altrimenti.
+Il campo 'message' conterra' un messaggio che descrive l'esito dell'operazione.*/
 response ReadNFiles(int n,int fd){
     response r;
     entry_t *bucket,*curr;
@@ -1129,6 +1165,9 @@ response ReadNFiles(int n,int fd){
     return r;
 }
 
+/*Funzione che permette di sbloccare il file 'pathname'. La funzione restituisce un oggetto di tipo 'response'
+che avra' il campo 'code' uguale a zero se l'operazione e' andata a buon fine, -1 altrimenti. Il campo 'message'
+conterra' un messaggio che descrive l'esito dell'operazione.*/
 response UnlockFile(char* pathname,int fd){
     response r;
     stored_file* found;
@@ -1175,6 +1214,8 @@ response UnlockFile(char* pathname,int fd){
     return r;
 }
 
+/*Funzione che permette di sbloccare tutti i file di esclusiva proprieta' del client connesso al file del
+file descriptor 'fd'. La funzione restituisce -1 in caso di errore, 0 altrimenti.*/
 int UnlockAllMyFiles(int fd){
     entry_t *bucket, *curr;
     int i;
@@ -1206,6 +1247,9 @@ int UnlockAllMyFiles(int fd){
     return 0;
 }
 
+/*Funzione che permette di eliminare il file 'pathname' dallo storage.  La funzione restituisce un oggetto
+di tipo 'response' che avra' il campo 'code' uguale a zero se l'operazione e' andata a buon fine, -1 altrimenti.
+Il campo 'message' conterra' un messaggio che descrive l'esito dell'operazione.*/
 response RemoveFile(char* pathname,int fd){
     response r;
     if(!pathname){
@@ -1258,10 +1302,9 @@ response RemoveFile(char* pathname,int fd){
         pthread_cond_signal(&found->is_unlocked);
         pthread_cond_wait(&found->is_deletable,&found->mutex_file);
     }
-    printf("Nessuno sta aspettando questo file,lo elimino\n");
+    printf("Nessuno sta aspettando questo file %s,lo elimino\n",pathname);
 
     pthread_mutex_lock(&mutex_storage);
-        
     //Procedo all'eliminazione del file
     if(hash_delete(storage,pathname,free,free_stored_file)==-1){
         r.code=-1;
@@ -1280,6 +1323,10 @@ response RemoveFile(char* pathname,int fd){
     return r;
 }
 
+/*Funzione che permette al client connesso sul file descriptor 'fd' di chiudere la connessione con il file
+'pathname'.  La funzione restituisce un oggetto di tipo 'response' che avra' il campo 'code' uguale a zero
+se l'operazione e' andata a buon fine, -1 altrimenti. Il campo 'message' conterra' un messaggio che descrive
+l'esito dell'operazione.*/
 response closeFile(char* pathname,int fd){
     response r;
     if(!pathname){
@@ -1317,6 +1364,11 @@ response closeFile(char* pathname,int fd){
     return r;
 }
 
+/*Funzione che decodifica il numero di richiesta ricevuto invocando il corretto metodo di gestione dello storage.
+La funzione restuisce 0 se l'operazione richiesta dal client connesso sul file descriptor 'fd' e' andata a buon fine
+ed il client non ha ultimato le richieste, 1 se il client connesso sul file descriptor 'fd' ha terminato le richieste,
+-1 se l'operazione richiesta dal client connesso sul file descriptor 'fd' e' fallita oppure si tratta di una opzione
+sconosciuta*/
 int ExecuteRequest(int fun,int fd){
     switch(fun){
         case (3):{ //Operazione Open File
@@ -1519,11 +1571,12 @@ int ExecuteRequest(int fun,int fd){
             response r=LockFile(string_buffer,fd,0);
             free(string_buffer);
 
+            
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
             SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST Case 8] Errore nella 'write' della dimensione della risposta");
             SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST Case 8] Errore nella 'write' della risposta");
-
+            
             return r.code;
         } 
         case (9):{ //Operazione Unlock File
@@ -1592,7 +1645,7 @@ int ExecuteRequest(int fun,int fd){
             SYSCALL(ctrl,writen(fd,r.message,responsedim),"[EXECUTE REQUEST Case 11 Errore nella 'write' della risposta");
             return r.code;
         }
-        case (12):{ //Operazione "Ho finito"
+        case (12):{ //Operazione "Terminazione"
             printf("\n\n*****Operazione CHIUSURA Fd: %d*****\n",fd);  
             if(UnlockAllMyFiles(fd)!=0)
                 return -1;
@@ -1615,6 +1668,7 @@ int ExecuteRequest(int fun,int fd){
     return 0;
 }
 
+/*Procedura per la stampa delle informazioni relative ad un file puntato da 'file' sullo stream 'stream'*/
 void print_stored_file_info(FILE* stream,void* file){
     stored_file* param=(stored_file*)file;
     //TODO: mutua esclusione sulla lettura del file

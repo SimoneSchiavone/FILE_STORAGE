@@ -120,7 +120,7 @@ int hash_insert(hash_t *ht, void* key, void *data){
     hash_val = (* ht->hash_function)(key) % ht->nbuckets;
     for (curr=ht->buckets[hash_val]; curr != NULL; curr=curr->next){
         if ( ht->hash_key_compare(curr->key, key)){
-            printf("Il file è già presente nello storage\n");
+            printf("Il file e' gia' presente nello storage\n");
             return 2; /* key already exists */
         }
     }
@@ -282,9 +282,8 @@ int hash_dump(FILE* stream, hash_t* ht,void (print_data_info)(FILE*, void*)){
 // @Università di Pisa
 // Matricola 582418
 
-/* Function to add a node at the beginning of Linked List. 
-   This function expects a pointer to the data to be added 
-   and size of the data type */
+/* Funzione per l'inserimento in testa di un intero in una lista concorrente. Restituisce
+0 se l'operazione e' andata a buon fine, -1 altrimenti.*/
 int concurrent_list_push(Node** head_ref, int new_data){ 
     // Allocate memory for node 
     Node* new_node = (Node*)malloc(sizeof(Node)); 
@@ -305,6 +304,7 @@ int concurrent_list_push(Node** head_ref, int new_data){
     return 0;
 } 
 
+/* Procedura per la deallocazione di una lista concorrente.*/
 void concurrent_list_destroy(Node* head_ref){
     pthread_mutex_lock(&mutex_list);
     Node* curr=head_ref;
@@ -317,42 +317,33 @@ void concurrent_list_destroy(Node* head_ref){
     pthread_mutex_unlock(&mutex_list);
 }
 
+/* Funzione per l'estrazione dalla testa di un intero da una lista concorrente. Restituisce
+l'intero estratto se l'operazione e' andata a buon fine, -1 altrimenti.*/
 int concurrent_list_pop(Node** head_ref){
     //printf("[WORKER %ld-ListPop] Inizio procedura\n",pthread_self());
     pthread_mutex_lock(&mutex_list);
     //printf("[WORKER %ld-ListPop] lock preso\n",pthread_self());
     //While the list doesn't containt an element wait for someone push a new one
     while((*head_ref)==NULL){
-        printf("[WORKER %ld-ListPop] aspetto la condizione, la lista e' vuota\n",pthread_self());
+        //printf("[WORKER %ld-ListPop] aspetto la condizione, la lista e' vuota\n",pthread_self());
         pthread_cond_wait(&list_not_empty,&mutex_list);
-        printf("[WORKER %ld-ListPop] mi sono svegliato\n",pthread_self());
+        //printf("[WORKER %ld-ListPop] mi sono svegliato\n",pthread_self());
         fflush(stdout);
     }
-    printf("Prima di estrarre\n");
-    list_print(*head_ref);
-    fflush(stdout);
 
     //Extraction of the element at the top of the list
     Node* extracted= (*head_ref);
-    if(extracted==NULL){    
-        printf("ESTRATTO NULLO\n");
-    }
-    
     (*head_ref)=(*head_ref)->next;
 
-    printf("Dopo aver estratto\n");
-    list_print(*head_ref);
-    fflush(stdout);
-
     pthread_mutex_unlock(&mutex_list);
-    //printf("[WORKER %ld-ListPop] lock rilasciato\n",pthread_self());
-    
+
     //Free the node and return the int value
     int data=extracted->data;
     free(extracted);
     return data;
 }
 
+/* Procedura per la stampa di una lista.*/
 void list_print(Node* head_ref){
     Node* curr=head_ref;
     printf("List:\t");
@@ -363,6 +354,8 @@ void list_print(Node* head_ref){
     printf("NULL\n");
 }
 
+/* Funzione per l'inserimento di 'n_workers' interi terminatori pari a '-1'. La 
+funzione restituisce 0 in caso di successo, -1 altrimenti.*/
 int concurrent_list_push_terminators(Node** head_ref,int n_workers){
     pthread_mutex_lock(&mutex_list);
     for(int i=0;i<n_workers;i++){
@@ -379,6 +372,8 @@ int concurrent_list_push_terminators(Node** head_ref,int n_workers){
     return 0;
 }
 
+/* Funzione per l'inserimento di un intero in testa ad una lista. La funzione 
+restituisce 0 in caso di successo, -1 altrimenti.*/
 int list_push(Node** head_ref, int new_data){ 
     // Allocate memory for node 
     Node* new_node = (Node*)malloc(sizeof(Node)); 
@@ -395,6 +390,7 @@ int list_push(Node** head_ref, int new_data){
     return 0;
 }
 
+/*Procedura per la distruzione di una lista di interi.*/
 void list_destroy(Node* head_ref){
     Node* curr=head_ref;
     Node* tmp;
@@ -405,6 +401,8 @@ void list_destroy(Node* head_ref){
     }
 }
 
+/*Procedura per la ricerca dell'intero 'to_search' in una lista di interi.
+Restituisce 1 se l'intero e' stato trovato, 0 altrimenti.*/
 int is_in_list(Node* head_ref, int to_search){
     Node* curr=head_ref;
     while(curr){
@@ -417,6 +415,8 @@ int is_in_list(Node* head_ref, int to_search){
     return 0;
 }
 
+/*Procedura per l'eliminazione dell'intero 'to_remove' in una lista di interi.
+Restituisce 1 se l'intero e' stato trovato e quindi deallocato, 0 altrimenti.*/
 int list_remove(Node** head_ref, int to_remove){
     Node* curr=(*head_ref);
     Node* prec=NULL;
