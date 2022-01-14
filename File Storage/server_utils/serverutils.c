@@ -714,23 +714,7 @@ response OpenFile(char* pathname, int o_create,int o_lock,int fd_owner){
         }
         pthread_mutex_unlock(&mutex_storage);
     }else{ //Il file deve essere presente
-        /*
-        stored_file* find=(stored_file*)hash_find(storage,pathname);
-        pthread_mutex_unlock(&mutex_storage);
-        if(find==NULL){
-            fprintf(stderr,"Il file %s non e' presente nello storage\n",pathname);
-            r.code=-1;
-            sprintf(r.message,"Il file %s non e' presente nello storage\n",pathname);
-            LOGFILEAPPEND("[Client %d] Il file %s non e' presente nello storage\n",fd_owner,pathname);
-        }else{
-            if(o_lock){
-                pthread_mutex_lock(&find->mutex_file);
-                new_file->fd_holder=fd_owner; //Setto il proprietario
-             }else{
-                new_file->fd_holder=-1; //Non locked
-            }
-        }*/
-
+    
         if(o_lock){
             pthread_mutex_lock(&mutex_storage);
             stored_file* file=hash_find(storage,pathname);
@@ -889,11 +873,7 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
     file->content=content;
     file->size=(size_t)size;
     
-    /*
-    printf("Crea:%s Last:%s\n",ctime(&(file->creation_time).tv_sec),ctime(&(file->last_operation).tv_sec));
-    sleep(2);*/
     gettimeofday(&file->last_operation,NULL); //Salvataggio tempo di ultima operazione
-    //printf("Creat:%d.%ld Last:%d.%ld\n",(int)file->creation_time.tv_sec,file->creation_time.tv_usec,(int)file->last_operation.tv_sec,file->last_operation.tv_usec);
     
     pthread_mutex_unlock(&file->mutex_file);
 
@@ -901,7 +881,6 @@ response WriteFile(char* pathname,char* content,int size,int fd,int send_to_clie
     r.code=0;
     sprintf(r.message,"OK, Il contenuto del file %s e' stato scritto sullo storage",pathname);
     LOGFILEAPPEND("[Client %d] Sono stati scritti %d bytes nel file con pathname %s\n",fd,size,pathname);
-    //hash_dump(stdout,storage,print_stored_file_info);
     //Ho terminato le operazioni sullo storage, rilascio il lock
     pthread_mutex_unlock(&mutex_storage);
     free(pathname);
@@ -1048,8 +1027,6 @@ response AppendToFile(char* pathname,char* content_to_append,int size,int fd,int
     r.code=0;
     sprintf(r.message,"OK, Il contenuto del file %s e' stato aggiornato dopo la append",pathname);
     LOGFILEAPPEND("[Client %d] Sono stati appesi %d bytes nel file con pathname %s\n",fd,size,pathname);
-    
-    //hash_dump(stdout,storage,print_stored_file_info);
 
     //Ho terminato le operazioni sullo storage, rilascio il lock
     pthread_mutex_unlock(&mutex_storage);
@@ -1125,9 +1102,7 @@ response ReadNFiles(int n,int fd){
     }
 
     SYSCALL_RESPONSE(ctrl,writen(fd,&nfiles,sizeof(int)),"Errore nell'invio del numero di file che saranno inviati al server");
-    //printf("Ho inviato %d bytes per il numero di file %d\n",ctrl,nfiles);
     int saven=nfiles;
-    //printf("Sono stati chiesti %d files, ne invio %d\n",n,nfiles);
     //Scorrimento della tabella hash
     for(int i=0; i<storage->nbuckets; i++) {
         bucket = storage->buckets[i];
@@ -1278,7 +1253,6 @@ response RemoveFile(char* pathname,int fd){
     //Verifica dei diritti
     if(found->fd_holder==-1){
         pthread_mutex_unlock(&found->mutex_file);
-        //pthread_mutex_unlock(&mutex_storage);
         r.code=-1;
         sprintf(r.message,"Non puoi cancellare un file pubblico");
         LOGFILEAPPEND("[Client %d] Non e' possibile cancellare il file %s in quanto e' pubblico\n",fd,pathname);
@@ -1289,7 +1263,6 @@ response RemoveFile(char* pathname,int fd){
             sprintf(r.message,"Non hai i diritti per cancellare il file");
             LOGFILEAPPEND("[Client %d] Non hai i diritti per cancellare il file %s\n",fd,pathname);
             pthread_mutex_unlock(&found->mutex_file);
-            //pthread_mutex_unlock(&mutex_storage);
             return r;
         }
     }
@@ -1378,33 +1351,24 @@ int ExecuteRequest(int fun,int fd){
 
             //Leggo la dimensione del pathname e poi leggo il pathname
             SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST] Errore nella 'read' della dimensione del pathname");
-            //printf("[EXECUTE REQUEST-OpenFile] Devo ricevere un path di dimensione %d\n",intbuffer);
             char* stringbuffer; //buffer per contenere la stringa
             if(!(stringbuffer=(char*)calloc(intbuffer,sizeof(char)))){ //Verifica malloc
                 perror("[EXECUTE REQUEST-OpenFile] Errore nella 'malloc' del buffer per pathname");
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,stringbuffer,intbuffer),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del pathname");
-            //printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il path %s di dimensione %d\n",stringbuffer,ctrl);
             
             //Leggo il flag o_create
             int o_create;
             SYSCALL(ctrl,readn(fd,&o_create,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_create");
-            /*
-            if(o_create)
-                printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il flag O_CREATE\n");*/
 
             //Leggo il flag o_lock
             int o_lock;
             SYSCALL(ctrl,readn(fd,&o_lock,4),"[EXECUTE REQUEST-OpenFile] Errore nella 'read' del flag o_locK");
-            /*
-            if(o_lock)
-                printf("[EXECUTE REQUEST-OpenFile] Ho ricevuto il flag O_LOCK\n");*/
 
             //Chiamata alla funzione OpenFile che restituisce un oggetto di tipo response che incapsula
             //al suo interno un messaggio ed un codice di errore
             response r=OpenFile(stringbuffer,o_create,o_lock,fd);
-            //printf("Ritorno da OpenFile codice %d msg %s\n",r.code,r.message);
             free(stringbuffer);
 
             int responsedim=strlen(r.message);
@@ -1427,13 +1391,11 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,stringbuffer,intbuffer),"[EXECUTE REQUEST-ReadFile] Errore nella 'read' del pathname");
-            //printf("[EXECUTE REQUEST-ReadFile] Ho ricevuto il path %s di dimensione %d\n",stringbuffer,ctrl);
-            
+                        
             stored_file* found=NULL;
             response r=ReadFile(stringbuffer,&found,fd);
             free(stringbuffer);
-            //printf("Codice %d Messaggio %s Locazione dello file %p\n",r.code,r.message,(void*)found);
-
+            
             int responsedim=strlen(r.message);
             //Invio prima la dimensione della risposta e poi la risposta
             SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della dimensione della risposta");
@@ -1441,12 +1403,9 @@ int ExecuteRequest(int fun,int fd){
 
             if(r.code==0){
                 responsedim=(int)found->size;
-                //printf("Dimensione del contenuto %d\n",responsedim);
                 //Invio prima la dimensione della risposta e poi la risposta
                 SYSCALL(ctrl,writen(fd,&responsedim,4),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' della dimensione del file da inviare");
-                //printf("Ho scritto %d bytes cioe' %d\n",ctrl,responsedim);
                 SYSCALL(ctrl,writen(fd,found->content,responsedim),"[EXECUTE REQUEST-ReadFile] Errore nella 'write' del contenuto del file");
-                //printf("Ho scritto %d bytes cioe' %s\n",ctrl,found->content);
             }
             if(found)
                 pthread_mutex_unlock(&found->mutex_file);
@@ -1482,11 +1441,9 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,read_name,intbuffer),"[EXECUTE REQUEST Case 6] Errore nella 'read' del pathname");
-            //printf("DEBUG, Ho ricevuto dal client %d bytes di pathname %s\n",ctrl,read_name);
 
             //-----Lettura del file-----
             SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 6] Errore nella 'read' della dimensione del file da leggere");
-            //printf("DEBUG, Ho ricevuto dal client %d bytes di dimensione del contenuto %d\n",ctrl,intbuffer);
             char* read_file=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del file
             if(read_file==NULL){
                 perror("Errore nella malloc del file ricevuto");
@@ -1494,12 +1451,10 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,read_file,intbuffer),"[EXECUTE REQUEST] Errore nella 'read' del file da leggere");
-            //printf("DEBUG, Ho ricevuto dal client %d bytes di contenuto\n",ctrl);
-            
+
             //-----Lettura del flag di invio degli eventuali file espulsi
             int flag;
             SYSCALL(ctrl,readn(fd,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
-            //printf("DEBUG, Ho ricevuto dal client %d bytes di flag espulsione %d\n",ctrl,flag);
 
             //-----Esecuzione operazione
             response r=WriteFile(read_name,read_file,intbuffer,fd,flag);
@@ -1523,11 +1478,9 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,read_name,intbuffer),"[EXECUTE REQUEST Case 7] Errore nella 'read' del pathname");
-            //printf("Ho ricevuto il pathname %s\n",read_name);
 
             //-----Lettura del contenuto da appendere-----
             SYSCALL(ctrl,readn(fd,&intbuffer,sizeof(int)),"[EXECUTE REQUEST Case 7] Errore nella 'read' della dimensione del file da leggere");
-            //printf("Dimensione file %d\n",intbuffer);
             char* read_file=(char*)calloc(intbuffer,sizeof(char)); //Alloco il buffer per la lettura del contenuto
             if(read_file==NULL){
                 perror("Errore nella malloc del file ricevuto");
@@ -1535,13 +1488,10 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,read_file,intbuffer),"[EXECUTE REQUEST Case 7] Errore nella 'read' del file da leggere");
-            //printf("Ho ricevuto %d bytes\n",ctrl);
-            //printf("Ho ricevuto: %s\n",read_file);
-            
+
             //-----Lettura del flag di invio degli eventuali file espulsi
             int flag;
             SYSCALL(ctrl,readn(fd,&flag,sizeof(int)),"Errore nella 'read' dell flag di restituzione file");
-            //printf("Ho ricevuto il flag %d\n",flag);
 
             //-----Esecuzione operazione
             response r=AppendToFile(read_name,read_file,intbuffer,fd,flag);
@@ -1549,9 +1499,7 @@ int ExecuteRequest(int fun,int fd){
             //-----Invio risposta-----
             int responsedim=strlen(r.message);
             SYSCALL(ctrl,writen(fd,&responsedim,sizeof(int)),"Errore nella 'write' della dimensione della risposta");
-            //printf("Ho inviato %d bytes di dimensione cioe' %d\n",ctrl,responsedim);
             SYSCALL(ctrl,writen(fd,r.message,responsedim),"Errore nella 'write' della risposta");
-            //printf("Ho inviato %d bytes di stringa: %s\n",ctrl,r.message);
             return r.code;
 
         }
@@ -1566,7 +1514,6 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 8] Errore nella 'read' del pathname");
-            printf("Ho ricevuto il pathname %s\n",string_buffer);
 
             response r=LockFile(string_buffer,fd,0);
             free(string_buffer);
@@ -1590,7 +1537,6 @@ int ExecuteRequest(int fun,int fd){
                 return -1;
             }
             SYSCALL(ctrl,readn(fd,string_buffer,intbuffer),"[EXECUTE REQUEST Case 9] Errore nella 'read' del pathname");
-            printf("Ho ricevuto il pathname %s\n",string_buffer);
 
             response r=UnlockFile(string_buffer,fd);
             free(string_buffer);
