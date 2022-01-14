@@ -7,14 +7,13 @@
 #define OLOCK 2
 
 int fd_connection;
-char* backup_dir;
-char* read_dir;
-int print_options;
-char working_directory[128];
+char* backup_dir; //nome della cartella per la memorizzazione dei file espulsi
+char* read_dir; //nome della cartella per la memorizzazione dei file letti
+int print_options; //flag stampa
+char working_directory[128]; //cartella di lavoro corrente
 
 int openConnection(const char* sockname, int msec, const struct timespec abstime);
 int closeConnection(const char* sockname);
-//int openFile(const char* pathname,int o_create,int o_lock);
 int openFile(const char* pathname,int flags);
 int readFile(const char* pathname,void** buf,size_t* size);
 int writeFile(char* pathname,char* dirname);

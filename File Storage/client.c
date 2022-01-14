@@ -1,13 +1,3 @@
-/*Realizzare un programma C che implementa un server che rimane sempre attivo 
-in attesa di richieste da parte di uno o piu' processi client su una socket di 
-tipo AF_UNIX. Ogni client richiede al server la trasformazione di tutti i 
-caratteri di una stringa da minuscoli a maiuscoli (es. ciao –> CIAO). Per ogni 
-nuova connessione il server lancia un thread POSIX che gestisce tutte le richieste
-del client (modello “un thread per connessione” – i thread sono spawnati in modalità detached)
-e quindi termina la sua esecuzione quando il client chiude la connessione. Per testare il 
-programma, lanciare piu' processi client ognuno dei quali invia una o piu' richieste 
-al server multithreaded.*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +48,7 @@ int main(int argc,char** argv){
 
     //Parsing degli argomenti da linea di comando
     int opt;
-    while((opt=getopt(argc,argv,":phf:w:W:D:r:d:t:l:u:c:R:"))!=-1){
+    while((opt=getopt(argc,argv,"phf:w:W:D:r:d:t:l:u:c:R:"))!=-1){
         switch (opt){
             case 'h':{ //Stampa opzioni accettate e termina
                 PrintAcceptedOptions();
@@ -261,12 +251,9 @@ int main(int argc,char** argv){
                 }
                 break;
             }
-            case 'R':{ //Leggi 'n' file qualsiasi dal server, se n non e' specificato leggi tutti i file
+            case 'R':{ //Leggi 'n' file qualsiasi dal server, se n e' 0 leggo tutti i file
                 if(optarg!=NULL){
                     IF_PRINT_ENABLED(printf("Caso R con argomento %s\n",optarg););
-                    if (optarg[0] == '-') {
-						printf("Ha preso come argomento il -\n");
-                    }
                 }
                 //Nuovo nodo della lista  di comandi
                 operation_node* new=(operation_node*)malloc(sizeof(operation_node));
@@ -476,43 +463,6 @@ int main(int argc,char** argv){
                 print_options=1;
                 break;
             }
-            case ':':{
-                if(optopt=='R'){ //Caso R senza argomento
-                    //Nuovo nodo della lista  di comandi
-                    operation_node* new=(operation_node*)malloc(sizeof(operation_node));
-                    if(!new){
-                        perror("Malloc new node");
-                        error=1;
-                        goto exit;
-                    }
-                    new->next=NULL;
-
-                    //Nuova operazione
-                    new->op=(pending_operation*)malloc(sizeof(pending_operation));
-                    if(!new->op){
-                        perror("Malloc new operation");
-                        free(new);
-                        error=1;
-                        goto exit;
-                    }
-                    
-                    //Preparazione operazione
-                    new->op->option=optopt;
-                    new->op->argc=0;
-                    new->op->args=NULL; 
-
-                    if(list_insert_operation_end(&command_list,new)==-1){
-                        fprintf(stderr,"Errore nell'inserimento dell'operazione della lista di esecuzione\n");
-                        free(new);
-                        free(new->op);
-                        goto exit;
-                    }
-                    break;
-                }else{
-                    printf("Argomento mancante per l'opzione -%c!\n",optopt);
-                    goto exit;
-                }
-            }
             case '?':{
                 printf("Opzione -%c sconosciuta!\n",optopt);
                 goto exit;
@@ -524,7 +474,6 @@ int main(int argc,char** argv){
 
     struct timespec a;
     a.tv_sec=15;
-    //print_command_list(command_list);
 
     if(socketname==NULL){
         if(openConnection(SOCKNAME,5000,a)==-1){
@@ -549,12 +498,9 @@ int main(int argc,char** argv){
             IF_PRINT_ENABLED(fprintf(stderr,"Errore in chiusura di connessione con %s\n",SOCKNAME););
         }
     }
-    
-    
 
     exit:
         list_destroy(command_list);
-        //free(working_directory);
         if(!error)
             return EXIT_SUCCESS;
         else
@@ -835,6 +781,8 @@ void Execute_Requests(operation_node* request_list){
     }
 }
 
+/*Funzione per il controllo dei comandi inseriti nella lista. Restituisce -1
+in caso di errore, 0 altrimenti.*/
 int operation_check(operation_node* head){
     operation_node* curr=head;
     int found_write=0;

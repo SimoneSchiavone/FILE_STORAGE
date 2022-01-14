@@ -20,21 +20,18 @@ typedef struct Node{
 }operation_node; 
 
 int list_insert_operation_end(operation_node** head,operation_node* to_insert);
-int list_insert_operation_start(operation_node** head,operation_node* to_insert);
 void print_command_list(operation_node* head);
 void list_destroy(operation_node* head);
 void Execute_Requests(operation_node* head);
 
 
+/*Lista di nomi di files*/
 typedef struct file_name{
     struct file_name* next;
     char* name;
 }file_name;
 
-int list_insert_name(file_name** head, char* name);
-int is_file_name_in_list(file_name* head, char* name);
 void name_list_destroy(file_name* head);
 void print_name_list(file_name* head);
-
 int files_in_directory(file_name** head,char* d);
 int n_files_in_directory(file_name** head,char* d,int num);

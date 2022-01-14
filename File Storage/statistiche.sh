@@ -1,5 +1,6 @@
 #!/bin/bash
 chmod +x statistiche.sh
+
 LOGFILE=txt/logfile.txt
 echo "Script STATISTICHE.SH"
 if test -f "$LOGFILE"; then
@@ -10,11 +11,9 @@ if test -f "$LOGFILE"; then
 		echo $riga
 		if [[ $riga == "LOG_FILE_NAME"* ]]; then
 			LOGFILE=${riga#*./}
-			echo $LOGFILE
 			break
 		fi
 	done < txt/config_file.txt
-	#implementare ricerca tramite configfile.txt
 	if [[ $LOGFILE == "txt/logfile.txt" ]]; then
 		echo "File di log non trovato, ABORT"
 		exit 1;
@@ -102,16 +101,18 @@ echo "-> Numero di unlock effettuate: $UNLOCKCOUNT"
 echo "-> Numero di open-lock: $OPENLOCK"
 echo "-> Numero di close: $CLOSECOUNT"
 echo "----------"
-echo "-> Numero massimo di file memorizzati: $MAXFILENUM bytes"
-echo "-> Dimensione massima di file memorizzati: $MAXFILEDIM MB"
+echo "-> Numero massimo di file memorizzati: $MAXFILENUM"
+echo "-> Dimensione massima dei file memorizzati nello storage: $MAXFILEDIM MB"
 echo "-> Attivazioni dell'algoritmo di rimpiazzamento: $REPL"
 echo "-> Massimo numero di connessioni contemporanee: $MAXCONTCONN"
 echo "----------"
+
 grep -w 'WORKER' $LOGFILE | sort -u > workerid.txt
-while read riga; do
-	riga=${riga%]}
-	riga=${riga#[}
-	echo "$riga ha eseguito $(grep -c "$riga" txt/journal.txt) operazioni"
+
+while read l; do
+	l=${l%]}
+	l=${l#[}
+	echo "$l ha eseguito $(grep -c "$l" txt/journal.txt) operazioni"
 done < workerid.txt
 rm workerid.txt
 

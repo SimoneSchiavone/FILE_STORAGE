@@ -73,29 +73,29 @@ int ScanConfiguration(char* path){
         char *tmpstr;
         char *token = strtok_r(line," \n", &tmpstr); //token conterrà la keyword del parametro da settare
 
-        if(strncmp(token,"NWORKERS",strlen(token))==0){
+        if(strcmp(token,"NWORKERS")==0){
             token=strtok_r(NULL," \n",&tmpstr);
             n_workers=atoi(token);
         }
-        if(strncmp(token,"MAX_FILE_N",strlen(token))==0){
+        if(strcmp(token,"MAX_FILE_N")==0){
             token=strtok_r(NULL," \n",&tmpstr);
             files_bound=atoi(token);
         }
-        if(strncmp(token,"MAX_FILE_DIM",strlen(token))==0){
+        if(strcmp(token,"MAX_FILE_DIM")==0){
             token=strtok_r(NULL," \n",&tmpstr);
             data_bound=((int)strtol(token,NULL,10))*(1000000);
         }
-        if(strncmp(token,"SOCKET_FILE_PATH",strlen(token))==0){
+        if(strcmp(token,"SOCKET_FILE_PATH")==0){
             token=strtok_r(NULL," \n",&tmpstr);
             memset(socket_name,'\0',128);
             strncpy(socket_name,token,strlen(token));
         }
-        if(strncmp(token,"LOG_FILE_NAME",strlen(token))==0){
+        if(strcmp(token,"LOG_FILE_NAME")==0){
             token=strtok_r(NULL," \n",&tmpstr);
             memset(logfilename,'\0',128);
             strncpy(logfilename,token,strlen(token));
         }
-        if(strncmp(token,"REPLACEMENT_POLICY",strlen(token))==0){
+        if(strcmp(token,"REPLACEMENT_POLICY")==0){
             token=strtok_r(NULL," \n",&tmpstr);
             if(strncmp(token,"fifo",4)==0){
                 replacement_policy=0;
@@ -259,7 +259,7 @@ int FIFO_Replacement(int fd,int send_to_client,char* do_not_remove,char** name){
                 if ((curr_e->data)){ //stored_file da analizzare
                     if(compare_timeval(&oldest_time,&(((stored_file*)curr_e->data))->creation_time)>0){
                         //Ho trovato il nuovo minimo
-                        if(check && (strncmp(curr_e->key,do_not_remove,strlen(curr_e->key))==0)){
+                        if(check && (strcmp(curr_e->key,do_not_remove)==0)){
                             //Ignoro questo file perche' e' di mio interesse e non voglio eliminarlo
                         }else{
                             //Salvataggio parametri nuova vittima
@@ -346,7 +346,7 @@ int LRU_Replacement(int fd,int send_to_client,char* do_not_remove,char** name){
                     //stored_file da analizzare
                     if(compare_timeval(&oldest_time,&(((stored_file*)curr_e->data))->last_operation)>0){
                         //Ho trovato il nuovo minimo
-                        if(check && (strncmp(curr_e->key,do_not_remove,strlen(curr_e->key))==0)){
+                        if(check && (strcmp(curr_e->key,do_not_remove)==0)){
                             //Ignoro questo file perche' e' di mio interesse e non voglio eliminarlo
                         }else{
                             //Salvo parametri della vittima

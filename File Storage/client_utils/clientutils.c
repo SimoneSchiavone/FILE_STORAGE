@@ -18,6 +18,7 @@ void Welcome(){
     printf("***Client File Storage ATTIVO***\n\n");
 }
 
+/*Procedura per la stampa delle opzioni accettati*/
 void PrintAcceptedOptions(){
     printf("*****Opzioni ACCETTATE*****\n");
     printf("\t '-f filename' \n\tspecifica il nome del socket AF_UNIX a cui connettersi\n\n");
@@ -35,6 +36,7 @@ void PrintAcceptedOptions(){
     printf("*****************\n");
 }
 
+/*Procedura ausiliaria per il conteggio del numero di virgole in una stringa*/
 int Count_Commas(char* str){
     //printf("Optarg %s\n",str);
     int c=0;
@@ -48,6 +50,7 @@ int Count_Commas(char* str){
     return c;
 }
 
+/*Procedura ausiliaria per la stampa di una lista*/
 void print_command_list(operation_node* head){
     printf("----------\n");
     printf("Operation List\n");
@@ -66,6 +69,8 @@ void print_command_list(operation_node* head){
     }
 }
 
+/*Funzione ausiliaria per l'inserimento di un comando nella lista. Restituisce 0 in 
+caso di successo, -1 in caso di fallimento*/
 int list_insert_operation_end(operation_node** head,operation_node* to_insert){
     if(!to_insert)    
         return -1;
@@ -81,14 +86,7 @@ int list_insert_operation_end(operation_node** head,operation_node* to_insert){
     return EXIT_SUCCESS;
 }
 
-int list_insert_operation_start(operation_node** head,operation_node* to_insert){
-    if(!to_insert)    
-        return -1;
-    to_insert->next=*head;
-    *head=to_insert;
-    return EXIT_SUCCESS;
-}
-
+/*Procedura per la distruzione di una lista di comandi.*/
 void list_destroy(operation_node* head){
     operation_node* curr=head;
     operation_node* tmp;
@@ -107,6 +105,7 @@ void list_destroy(operation_node* head){
     }
 }
 
+/*Procedura ausiliaria per la stampa di una lista di file_name.*/
 void print_name_list(file_name* head){
     printf("---Name List---\n");
     file_name* curr=head;
@@ -117,30 +116,7 @@ void print_name_list(file_name* head){
     printf("NULL\n");
 }
 
-int list_insert_name(file_name** head,char* name){
-    if(!name)    
-        return -1;
-    file_name* to_insert=(file_name*)malloc(sizeof(file_name));
-    if(!to_insert)
-        return -1;
-    to_insert->next=(*head);
-    to_insert->name=strdup(name);
-    (*head)=to_insert;
-    return EXIT_SUCCESS;
-}
-
-int is_file_name_in_list(file_name* head,char* name){
-    printf("Nome da cercare %s\n",name);
-    file_name* curr=head;
-    while(curr){
-        printf("Confronto con %s\n",curr->name);
-        if(strcmp(curr->name,name)==0)
-            return 1;
-        curr=curr->next;
-    }
-    return 0;
-}
-
+/*Procedura per la deallocazione di una lista di file_name*/
 void name_list_destroy(file_name* head){
     file_name* tmp=head;
     while(head){
@@ -157,6 +133,8 @@ int isdot(const char dir[]) {
     return 0;
 }
 
+/*Procedura per l'inserimento dei nomi dei file contenuti nella cartella 'dirname' 
+nella lista di file_name head.*/
 int files_in_directory(file_name** head,char* dirname){
     if(chdir(dirname)==-1){
         fprintf(stderr,"Errore cambiando la cartella\n");
@@ -201,6 +179,8 @@ int files_in_directory(file_name** head,char* dirname){
     return 0;
 }
 
+/*Procedura per l'inserimento di 'num' nomi di file contenuti nella cartella 'dirname' 
+nella lista di file_name head.*/
 int n_files_in_directory(file_name** head,char* dirname,int num){
     if(chdir(dirname)==-1){
         fprintf(stderr,"Errore cambiando la cartella\n");

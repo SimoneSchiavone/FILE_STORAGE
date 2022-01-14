@@ -184,6 +184,9 @@ int openFile(const char* pathname,int flags){
     }
 }
 
+/*Procedura di supporto che permette di estrarre l'ultima parte di un path assoluto.
+Prende in input il path originale e restituisce un una stringa allocata dinamicamente contenente
+il nome del file indirizzato.*/
 char* extract_file_name(char* original_path){
 	char* tmp;
 	char* token=strtok_r(original_path,"/",&tmp);
@@ -835,8 +838,8 @@ del contenuto da appendere, il parametro 'size' contiene la dimensione del conte
 Protocollo:
 --> Il client invia al server:
         -il codice comando 7
-        -dimensione del pathname e pathname del file da scrivere
-        -dimensione del contenuto e contenuto del file da scrivere
+        -dimensione del pathname e pathname del file a cui appendere del contenuto
+        -dimensione del contenuto e contenuto da appendere al file
         -flag di invio di file espulsi (1 se 'dirname' non e' nullo, 0 altrimenti)
 <-- Il client riceve dal server:
         -flag di autorizzazione a procedere; se 0 abortiamo l'operazione
@@ -992,7 +995,6 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
     }
 
     read_2:{
-        //printf("ASPETTO UNA RISPOSTA\n");
         //Leggo dal server la dimensione della risposta
         int dim=256;
         SYSCALL(ctrl,readn(fd_connection,&dim,sizeof(int)),"Errore nella 'read' della dimensione della risposta");
@@ -1016,6 +1018,14 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
     }
 }
 
+/*Funzione che permette la chiusura del file 'pathname'. 
+Protocollo:
+--> Il client invia al server:
+        -il codice comando 10
+        -la dimensione del pathname ed il pathname del file da chiudere
+<-- Il client riceve dal server:
+        -dimensione della risposta e risposta
+*/
 int closeFile(char* pathname){
     if(!pathname){
         errno=EINVAL;
