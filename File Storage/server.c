@@ -182,7 +182,7 @@ int main(){
 
                     //leggo il fd restituito dal thread worker
                     SYSCALL(byte_read,readn(wtm_pipe[0],&fd_packet,7),"Errore nella 'read' del fd restituito dal worker");
-                    printf("MAIN: Il worker mi ha restituito il fd %s\n",fd_packet);
+                    printf("[Server_Main] Il worker mi ha restituito il fd %s\n",fd_packet);
                     if(strncmp(fd_packet,"C:",2)==0)
                         finished=0;
                     else
@@ -197,7 +197,6 @@ int main(){
                         FD_CLR(received_fd,&set);
                         if(received_fd==fd_max)
                             fd_max=Search_New_Max_FD(set,fd_max);
-                        printf("Il nuovo massimo e' %d\n",fd_max);
                         int e;
                         SYSCALL(e,close(received_fd),"Errore nella chiusura del fd restituito dal worker");
                         active_connections--;

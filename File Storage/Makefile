@@ -34,6 +34,7 @@ clean:
 	-rm -f -v server client *.sock *~ $(server_modules)/*.o $(client_modules)/*.o $(client_modules)/*.a Espulsi/* Letti/* $(txt_files_dir)/journal.txt
 	-rmdir Espulsi Letti
 test1:
+	make result_clean
 	@clear
 	@echo "----------INIZIO TEST #1----------"
 	cp $(test_dir)/test1/test1.txt $(txt_files_dir)/config_file.txt
@@ -42,6 +43,7 @@ test1:
 	@./statistiche.sh
 
 test2:
+	make result_clean
 	@clear
 	@echo "----------INIZIO TEST #2----------"
 	cp $(test_dir)/test2/test2.txt $(txt_files_dir)/config_file.txt
@@ -50,13 +52,15 @@ test2:
 	@./statistiche.sh
 
 test3:
+	make result_clean
 	@clear
 	@echo "----------INIZIO TEST #3----------"
 	cp $(test_dir)/test3/test3.txt $(txt_files_dir)/config_file.txt
 	@bash $(test_dir)/test3/test3.sh
+	@sleep 1
 	@echo "----------FINE TEST #3----------"
 	@./statistiche.sh
-
+	
 result_clean:
 	@echo "----------RESULT CLEAN----------"
 	-rm -f -v Espulsi/* Letti/* $(txt_files_dir)/journal.txt
