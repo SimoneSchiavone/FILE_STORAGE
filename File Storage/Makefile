@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -pedantic-errors -g
+CFLAGS = -Wall -pedantic-errors -g -std=gnu99
 PTHREADS = -lpthread
 .PHONY = all clear test1 test2 test3 result_clean
 
@@ -22,17 +22,16 @@ client: $(client_dependecies)
 $(client_modules)/FileStorageAPILib.a: $(client_modules)/serverAPI.o
 	ar rvs $@ $<
 
-#regola per compilare ogni modulo nel suo file oggetto
 $(server_modules)/%.o: $(server_modules)/%.c $(server_modules)/%.h
 	$(CC) -c $(CFLAGS) $< -o $@ $(PTHREADS)
 
 $(client_modules)/%.o: $(client_modules)/%.c $(client_modules)/%.h
 	$(CC) -c $(CFLAGS)	 $< -o $@ $(PTHREADS)
 
-#rimuove tutti i file testuali tranne quello di configurazione
 clean:
 	-rm -f -v server client *.sock *~ $(server_modules)/*.o $(client_modules)/*.o $(client_modules)/*.a Espulsi/* Letti/* $(txt_files_dir)/journal.txt
 	-rmdir Espulsi Letti
+
 test1:
 	make result_clean
 	@clear
