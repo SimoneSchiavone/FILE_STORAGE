@@ -12,14 +12,3 @@ do
     ./client -t 0 -d Letti -r ./test/test3/files/filevuoto.txt -c ./test/test3/files/bigfile.txt -R 2&
     sleep 0.25
 done
-
-    #./client -t 0 -l ./test/test3/files/news/clima.txt -u ./test/test3/files/news/clima.txt &
-    #./client -t 0 -d Letti -r ./test/test3/files/filevuoto.txt &
-    #./client -t 0 -W ./test/test3/files/letteratura/divinacommedia.txt &
-    #./client -t 0 -l ./test/test3/files/Mickey/randomtext.pdf -c ./test/test3/files/Mickey/randomtext.pdf &
-    #./client -t 0 -d Letti -R 2 &
-    #./client -t 0 -l ./test/test3/files/news/clima.txt -u ./test/test3/files/news/clima.txt &
-    #./client -t 0 -d Letti -r ./test/test3/files/filevuoto.txt &
-    #./client -t 0 -W ./test/test3/files/letteratura/divinacommedia.txt &
-    #./client -t 0 -l ./test/test3/files/Mickey/randomtext.pdf -c ./test/test3/files/Mickey/randomtext.pdf &
-    #./client -t 0 -d Letti -R 2 &
