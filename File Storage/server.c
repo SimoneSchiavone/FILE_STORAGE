@@ -272,7 +272,7 @@ int main(){
     printf("\n*****STATISTICHE DI CHIUSURA*****\n");
     max_data_num= (max_data_num == -1) ? 0 : max_data_num;
     max_data_size= (max_data_size == -1) ? 0 : max_data_size;
-    float MBmax=((float)max_data_size)/1000000;
+    float MBmax=((float)max_data_size)/1048576;
     printf("Numero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero di connessioni accettate: %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,connections_number,max_active_connections);
     LOGFILEAPPEND("STATISTICHE FINALI\nNumero massimo di file memorizzati: %d\nDimensione massima raggiunta (in MB): %.8f\nNumero attivazioni dell'algoritmo di rimpiazzamento: %d\nNumero massimo di connessioni contemporanee: %d\n",max_data_num,MBmax,nr_of_replacements,max_active_connections);
     LOGFILEAPPEND("Server spento!\n");
