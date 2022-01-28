@@ -272,7 +272,7 @@ int readFile(const char* pathname,void** buf,size_t* size){
             //Verifico che dirname sia effettivamente una cartella
             DIR* destination=opendir(read_dir);
             if(!destination){
-                if(errno=ENOENT){ //Se la cartella non esiste la creo
+                if(errno==ENOENT){ //Se la cartella non esiste la creo
                     mkdir(read_dir,0777);
                     destination=opendir(read_dir);
                     if(!destination){
@@ -371,7 +371,7 @@ int readNFiles(int n, char* dirname){
     //Verifico che dirname sia effettivamente una cartella
     destination=opendir(read_dir);
     if(!destination){
-        if(errno=ENOENT){ //Se la cartella non esiste la creo
+        if(errno==ENOENT){ //Se la cartella non esiste la creo
             mkdir(read_dir,0777);
             destination=opendir(read_dir);
             IF_PRINT_ENABLED(printf("[readNFiles] Cartella per i file letti non trovata, la creo\n"););
@@ -417,7 +417,8 @@ int readNFiles(int n, char* dirname){
             free(content);
             return -1;
         }
-        IF_PRINT_ENABLED(printf("[readNFiles] Ho scritto %d bytes nel file %s\n",(int)fwrite(content,sizeof(char),ctrl-1,read_file),pathname););
+        int k=(int)fwrite(content,sizeof(char),ctrl-1,read_file);
+        IF_PRINT_ENABLED(printf("[readNFiles] Ho scritto %d bytes nel file %s\n",k,pathname););
         if(fclose(read_file)==-1){
             IF_PRINT_ENABLED(fprintf(stderr,"[readNFiles] Errore in chiusura del file\n"););
             free(pathname);
@@ -560,7 +561,7 @@ int writeFile(char* pathname,char* dirname){
             }
                 
             if(!destination){
-                if(errno=ENOENT){ //Se la cartella non esiste la creo
+                if(errno==ENOENT){ //Se la cartella non esiste la creo
                     mkdir(dirname,0777);
                     destination=opendir(dirname);
                     IF_PRINT_ENABLED(printf("[WriteFile] Cartella per i file espulsi non trovata, la creo\n"););
@@ -605,7 +606,8 @@ int writeFile(char* pathname,char* dirname){
                 return -1;
             }
             free(buffer_name);
-            IF_PRINT_ENABLED(printf("[writeFile] Ho scritto %d bytes del file espulso nella directory di backup\n",(int)fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file)););
+            int k=(int)fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file);
+            IF_PRINT_ENABLED(printf("[writeFile] Ho scritto %d bytes del file espulso nella directory di backup\n",k););
             free(buffer_content);
             if(fclose(expelled_file)==-1){
                 IF_PRINT_ENABLED(fprintf(stderr,"[writeFile] Errore nella chiusura del file\n"););
@@ -903,7 +905,7 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
             DIR* destination=NULL;
             destination=opendir(dirname);
             if(!destination){
-                if(errno=ENOENT){ //Se la cartella non esiste la creo
+                if(errno==ENOENT){ //Se la cartella non esiste la creo
                     mkdir(dirname,0777);
                     destination=opendir(dirname);
                     IF_PRINT_ENABLED(printf("[appendToFile] Cartella per i file espulsi non trovata, la creo\n"););
@@ -948,7 +950,8 @@ int appendToFile(char* pathname,void* buf,size_t size,char* dirname){
                 return -1;
             }
             free(buffer_name);
-            IF_PRINT_ENABLED(printf("[appendToFile] Ho scritto %d bytes del file espulso nella directory di backup\n",(int)fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file)););
+            int k=(int)fwrite(buffer_content,sizeof(char),dim_content-1,expelled_file);
+            IF_PRINT_ENABLED(printf("[appendToFile] Ho scritto %d bytes del file espulso nella directory di backup\n",k););
             free(buffer_content);
             if(fclose(expelled_file)==-1){
                 IF_PRINT_ENABLED(fprintf(stderr,"[appendToFile] Errore nell'appendToFile del file %s\n",pathname););                  
